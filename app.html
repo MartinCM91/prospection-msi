@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prospection MSI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <h1>Prospection MSI</h1>
+      <p class="header-sub">Pilotage commercial ICAM</p>
+    </div>
+    <div class="header-right">
+      <span id="user-info"></span>
+      <button id="btn-logout" class="btn-secondary">Déconnexion</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab tab-active" data-tab="dashboard">Tableau de bord</button>
+    <button class="tab" data-tab="calendar">Calendrier</button>
+    <button class="tab" data-tab="events">Événements</button>
+    <button class="tab" data-tab="objectifs">Objectifs</button>
+  </nav>
+
+  <main id="app">
+    <section id="view-dashboard" class="view active">
+      <h2>Vue d'ensemble</h2>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Événements planifiés</div><div class="kpi-value" id="kpi-total">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Événements réalisés</div><div class="kpi-value" id="kpi-done">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Contacts générés</div><div class="kpi-value" id="kpi-contacts">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Objectif annuel</div><div class="kpi-value" id="kpi-objectif">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Taux d'atteinte</div><div class="kpi-value" id="kpi-rate">—</div></div>
+      </div>
+
+      <h3>Performance par source</h3>
+      <div class="table-wrapper">
+        <table class="data-table" id="perf-table">
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th>Cible annuelle</th>
+              <th>Réalisé</th>
+              <th>Écart</th>
+              <th>Taux</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-calendar" class="view">
+      <div class="view-header">
+        <h2>Calendrier annuel <select id="year-select"></select></h2>
+        <button class="btn-primary" id="btn-add-from-cal">+ Nouvel événement</button>
+      </div>
+      <p class="hint">Cliquez sur une case vide pour ajouter un événement à cette source et ce mois.</p>
+      <div id="calendar-grid" class="calendar-grid"></div>
+    </section>
+
+    <section id="view-events" class="view">
+      <div class="view-header">
+        <h2>Tous les événements</h2>
+        <button class="btn-primary" id="btn-add-event">+ Nouvel événement</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="events-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Action</th>
+              <th>Source</th>
+              <th>Responsable</th>
+              <th>Objectif</th>
+              <th>Résultat</th>
+              <th>Statut</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-objectifs" class="view">
+      <h2>Objectifs par source</h2>
+      <p class="hint">Définissez les cibles de contacts pour chaque source et chaque période MSI.</p>
+      <div class="table-wrapper">
+        <table class="data-table" id="objectifs-table">
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th>Période 1 (févr → juin)</th>
+              <th>Période 2 (sept → janv)</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">Nouvel événement</h3>
+        <button id="modal-close">✕</button>
+      </div>
+      <form id="event-form">
+        <input type="hidden" id="event-id">
+        <label>Quoi (action) *</label>
+        <input type="text" id="event-quoi" required placeholder="Ex : JPO janvier">
+        <div class="row">
+          <div>
+            <label>Source *</label>
+            <select id="event-source" required></select>
+          </div>
+          <div>
+            <label>Date *</label>
+            <input type="date" id="event-date" required>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Responsable</label>
+            <select id="event-responsable"></select>
+          </div>
+          <div>
+            <label>Objectif (nb contacts)</label>
+            <input type="number" id="event-objectif" min="0" value="0">
+          </div>
+        </div>
+        <label>Préparation / livrables</label>
+        <input type="text" id="event-comment" placeholder="Poster, mailing, support...">
+        <label>Résultat (à remplir après l'événement)</label>
+        <input type="number" id="event-resultat" min="0" placeholder="Nombre de contacts obtenus">
+        <label>Notes</label>
+        <textarea id="event-notes" rows="3"></textarea>
+        <div class="modal-footer">
+          <button type="button" id="btn-delete" class="btn-danger hidden">Supprimer</button>
+          <button type="submit" class="btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

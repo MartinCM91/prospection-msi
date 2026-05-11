@@ -1,4 +1,4 @@
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 const MOIS_COURT = ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'];
@@ -13,14 +13,14 @@ let state = {
 };
 
 async function init() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();
   if (!session) {
     window.location.href = 'index.html';
     return;
   }
   state.user = session.user;
 
-  const { data: profil } = await supabase.from('utilisateurs').select('*').eq('id', state.user.id).single();
+  const { data: profil } = await sb.from('utilisateurs').select('*').eq('id', state.user.id).single();
   document.getElementById('user-info').textContent = (profil?.prenom || '') + ' ' + (profil?.nom || '');
 
   await loadData();
@@ -31,10 +31,10 @@ async function init() {
 
 async function loadData() {
   const [sources, utilisateurs, objectifs, evenements] = await Promise.all([
-    supabase.from('sources').select('*').order('id'),
-    supabase.from('utilisateurs').select('*').order('prenom'),
-    supabase.from('objectifs').select('*'),
-    supabase.from('evenements').select('*').order('date_evenement', { ascending: false })
+    sb.from('sources').select('*').order('id'),
+    sb.from('utilisateurs').select('*').order('prenom'),
+    sb.from('objectifs').select('*'),
+    sb.from('evenements').select('*').order('date_evenement', { ascending: false })
   ]);
   state.sources = sources.data || [];
   state.utilisateurs = utilisateurs.data || [];
@@ -66,7 +66,7 @@ function setupNav() {
   });
 
   document.getElementById('btn-logout').addEventListener('click', async () => {
-    await supabase.auth.signOut();
+    await sb.auth.signOut();
     window.location.href = 'index.html';
   });
 
@@ -159,8 +159,8 @@ async function saveEvent(e) {
   };
 
   const { error } = id
-    ? await supabase.from('evenements').update(data).eq('id', id)
-    : await supabase.from('evenements').insert([data]);
+    ? await sb.from('evenements').update(data).eq('id', id)
+    : await sb.from('evenements').insert([data]);
 
   if (error) {
     showToast('Erreur : ' + error.message, 'error');
@@ -175,7 +175,7 @@ async function saveEvent(e) {
 async function deleteEvent() {
   const id = document.getElementById('event-id').value;
   if (!id || !confirm('Supprimer cet événement ?')) return;
-  const { error } = await supabase.from('evenements').delete().eq('id', id);
+  const { error } = await sb.from('evenements').delete().eq('id', id);
   if (error) {
     showToast('Erreur : ' + error.message, 'error');
   } else {
@@ -353,9 +353,9 @@ function renderObjectifsTable() {
       const cible = parseInt(input.value) || 0;
       const existing = state.objectifs.find(o => o.source_id === srcId && o.periode === periode);
       if (existing) {
-        await supabase.from('objectifs').update({ cible_contacts: cible }).eq('id', existing.id);
+        await sb.from('objectifs').update({ cible_contacts: cible }).eq('id', existing.id);
       } else {
-        await supabase.from('objectifs').insert([{ source_id: srcId, periode, cible_contacts: cible }]);
+        await sb.from('objectifs').insert([{ source_id: srcId, periode, cible_contacts: cible }]);
       }
       await loadData();
       renderObjectifsTable();

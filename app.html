@@ -25,20 +25,31 @@
     <button class="tab" data-tab="calendar">Calendrier</button>
     <button class="tab" data-tab="events">Événements</button>
     <button class="tab" data-tab="objectifs">Objectifs</button>
+    <button class="tab tab-aide" data-tab="aide">Aide</button>
   </nav>
 
   <main id="app">
     <section id="view-dashboard" class="view active">
-      <h2>Vue d'ensemble</h2>
+      <div class="view-header">
+        <h2>Vue d'ensemble <select id="dash-year" class="year-select"></select></h2>
+      </div>
       <div class="kpi-grid">
         <div class="kpi-card"><div class="kpi-label">RDV effectués</div><div class="kpi-value" id="kpi-rdv">—</div></div>
         <div class="kpi-card"><div class="kpi-label">Propositions envoyées</div><div class="kpi-value" id="kpi-propositions">—</div></div>
         <div class="kpi-card"><div class="kpi-label">CA en cours (€)</div><div class="kpi-value" id="kpi-ca-cours">—</div></div>
         <div class="kpi-card"><div class="kpi-label">CA signé (€)</div><div class="kpi-value" id="kpi-ca-signe">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Objectif 2026 (€)</div><div class="kpi-value" id="kpi-ca-objectif">600 000</div></div>
-        <div class="kpi-card"><div class="kpi-label">Taux RDV → Prop.</div><div class="kpi-value" id="kpi-taux-prop">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Taux Prop. → Signé</div><div class="kpi-value" id="kpi-taux-sign">—</div></div>
-        <div class="kpi-card"><div class="kpi-label">Affaires gagnées</div><div class="kpi-value" id="kpi-affaires-gagne">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Objectif CA (€)</div><div class="kpi-value" id="kpi-ca-objectif">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Atteinte CA</div><div class="kpi-value" id="kpi-atteinte-ca">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">MSI signés</div><div class="kpi-value" id="kpi-msi-signe">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Objectif MSI</div><div class="kpi-value" id="kpi-msi-objectif">—</div></div>
+      </div>
+
+      <h3>Performance par période MSI</h3>
+      <div class="table-wrapper">
+        <table class="data-table" id="periodes-table">
+          <thead><tr><th>Période</th><th>CA cible</th><th>CA signé</th><th>CA en cours</th><th>Atteinte</th><th>MSI cible</th><th>MSI signés</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
 
       <h3>Affaires par état</h3>
@@ -60,9 +71,11 @@
 
     <section id="view-hebdo" class="view">
       <div class="view-header">
-        <h2>Suivi hebdomadaire <select id="hebdo-year"></select></h2>
-        <div>
-          <label style="font-size:12px;color:#5F5E5A;margin-right:8px;">Semaine</label>
+        <h2>Suivi hebdomadaire</h2>
+        <div class="filter-bar">
+          <label>Année</label>
+          <select id="hebdo-year"></select>
+          <label>Semaine</label>
           <select id="hebdo-week"></select>
         </div>
       </div>
@@ -120,8 +133,11 @@
 
     <section id="view-calendar" class="view">
       <div class="view-header">
-        <h2>Calendrier annuel <select id="year-select"></select></h2>
-        <button class="btn-primary" id="btn-add-from-cal">+ Nouvel événement</button>
+        <h2>Calendrier annuel</h2>
+        <div class="filter-bar">
+          <select id="year-select"></select>
+          <button class="btn-primary" id="btn-add-from-cal">+ Nouvel événement</button>
+        </div>
       </div>
       <p class="hint">Cliquez sur une case vide pour ajouter un événement à cette source et ce mois.</p>
       <div id="calendar-grid" class="calendar-grid"></div>
@@ -143,13 +159,126 @@
     </section>
 
     <section id="view-objectifs" class="view">
-      <h2>Objectifs par source</h2>
-      <p class="hint">Définissez les cibles de contacts pour chaque source et chaque période MSI.</p>
-      <div class="table-wrapper">
-        <table class="data-table" id="objectifs-table">
-          <thead><tr><th>Source</th><th>Période 2526B (févr → juin)</th><th>Période 2627A (sept → janv)</th><th>Total</th></tr></thead>
-          <tbody></tbody>
-        </table>
+      <h2>Objectifs</h2>
+
+      <div class="section-block">
+        <div class="section-header">
+          <h3>Objectifs annuels et par période MSI</h3>
+          <div class="filter-bar">
+            <label>Année</label>
+            <select id="obj-year"></select>
+            <button class="btn-secondary" id="btn-add-periode">+ Ajouter une période</button>
+          </div>
+        </div>
+        <p class="hint">Définissez les objectifs en chiffre d'affaires (€) et en nombre de projets MSI à signer pour chaque période. La période ANNUEL représente l'objectif global de l'année.</p>
+        <div class="table-wrapper">
+          <table class="data-table" id="obj-annuels-table">
+            <thead><tr><th>Période</th><th>CA cible (€)</th><th>Nombre MSI cible</th><th>Commentaire</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <h3>Objectifs de contacts par source</h3>
+        <p class="hint">Définissez les cibles de contacts à générer pour chaque source et chaque période MSI.</p>
+        <div class="table-wrapper">
+          <table class="data-table" id="objectifs-table">
+            <thead><tr><th>Source</th><th>Période 2526B (févr → juin)</th><th>Période 2627A (sept → janv)</th><th>Total</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-aide" class="view">
+      <h2>Aide et mode d'emploi</h2>
+      <p class="hint">Cette page documente l'utilisation de l'outil pour assurer sa continuité dans le temps. Lisez-la en entier la première fois.</p>
+
+      <div class="aide-block">
+        <h3>1. À quoi sert cet outil</h3>
+        <p>Cet outil sert à piloter la prospection commerciale de l'offre MSI (Mission Sectorielle d'Ingénierie) de l'ICAM. Il permet de centraliser les actions des commerciaux, suivre les opportunités d'affaires, et mesurer l'atteinte des objectifs annuels.</p>
+        <p>Trois utilisateurs principaux : les commerciaux qui saisissent leur activité hebdomadaire et leurs affaires, le responsable de la prospection qui suit les KPI globaux, la direction qui consulte le tableau de bord pour les revues.</p>
+      </div>
+
+      <div class="aide-block">
+        <h3>2. Comment commencer (paramétrage initial)</h3>
+        <ol>
+          <li><strong>Créer son compte</strong> via le bouton Inscription sur la page d'accueil. Renseigner prénom, nom, email et mot de passe.</li>
+          <li><strong>Définir les objectifs annuels</strong> dans l'onglet Objectifs. Saisir le CA cible et le nombre de MSI cible pour l'année en cours, puis détailler par période MSI (2526B, 2627A).</li>
+          <li><strong>Définir les objectifs par source</strong> dans le même onglet. Ces objectifs servent au pilotage de la prospection événementielle.</li>
+          <li><strong>Inviter les autres commerciaux</strong> à créer leur compte. Une fois inscrits, leur ligne apparaîtra automatiquement dans le Suivi hebdo.</li>
+        </ol>
+      </div>
+
+      <div class="aide-block">
+        <h3>3. Utilisation hebdomadaire (commerciaux)</h3>
+        <ol>
+          <li>Ouvrir l'onglet <strong>Suivi hebdo</strong> chaque vendredi.</li>
+          <li>Sélectionner la semaine en cours.</li>
+          <li>Saisir pour chaque type d'activité le nombre d'actions effectuées : appels et contacts, RDV effectués, propositions envoyées.</li>
+          <li>La sauvegarde est automatique dès qu'une valeur est modifiée.</li>
+        </ol>
+      </div>
+
+      <div class="aide-block">
+        <h3>4. Gestion des affaires</h3>
+        <p>Chaque opportunité commerciale est une affaire. Le cycle de vie d'une affaire passe par 6 états successifs :</p>
+        <ol>
+          <li><strong>Qualification</strong> : premier contact, besoin à clarifier.</li>
+          <li><strong>Expression de besoin</strong> : le besoin du client est connu et documenté.</li>
+          <li><strong>Proposition envoyée</strong> : devis officiel envoyé.</li>
+          <li><strong>Négociation en cours</strong> : échanges sur les conditions ou le prix.</li>
+          <li><strong>Contrat validé</strong> : affaire gagnée (compte dans le CA signé).</li>
+          <li><strong>Contrat refusé</strong> : affaire perdue (renseigner la raison).</li>
+        </ol>
+        <p>Le <strong>niveau de confiance</strong> est une probabilité entre 0 et 1 que l'affaire se signe. Le <strong>montant pondéré</strong> (montant × confiance) donne le CA en cours réaliste.</p>
+      </div>
+
+      <div class="aide-block">
+        <h3>5. Lecture du tableau de bord</h3>
+        <p>Le tableau de bord se met à jour automatiquement à partir des données saisies. Les indicateurs clés :</p>
+        <ul>
+          <li><strong>CA en cours</strong> : somme des montants pondérés des affaires non encore signées. C'est le CA réaliste qu'on peut espérer.</li>
+          <li><strong>CA signé</strong> : somme des montants des affaires en état "Contrat validé".</li>
+          <li><strong>Taux RDV → Proposition</strong> : combien de RDV débouchent sur une proposition envoyée.</li>
+          <li><strong>Taux Proposition → Signé</strong> : combien de propositions deviennent des affaires signées.</li>
+          <li><strong>Performance par période MSI</strong> : compare l'objectif et le réalisé pour chaque semestre.</li>
+        </ul>
+      </div>
+
+      <div class="aide-block">
+        <h3>6. Onglets Calendrier et Événements</h3>
+        <p>Ces onglets servent à planifier la prospection événementielle (JPO, salons, webinaires, etc.). Le calendrier croise sources et mois sur l'année, et chaque case vide permet de créer un nouvel événement directement.</p>
+      </div>
+
+      <div class="aide-block">
+        <h3>7. Maintenance technique</h3>
+        <p>L'application repose sur trois services gratuits :</p>
+        <ul>
+          <li><strong>GitHub</strong> : héberge le code source. Pour modifier l'application, éditer les fichiers index.html, app.html, app.js, style.css, config.js.</li>
+          <li><strong>Supabase</strong> : héberge la base de données et l'authentification. Pour ajouter des champs ou des tables, utiliser le SQL Editor. Pour gérer les utilisateurs, aller dans Authentication.</li>
+          <li><strong>Netlify</strong> : héberge le site web. Toute modification du code sur GitHub déclenche un re-déploiement automatique en 30 secondes.</li>
+        </ul>
+        <p>Les sauvegardes Supabase sont automatiques sur 7 jours en plan gratuit. Pour une sauvegarde manuelle, exporter les données depuis l'onglet Database de Supabase.</p>
+      </div>
+
+      <div class="aide-block">
+        <h3>8. Évolutions à prévoir</h3>
+        <p>Cet outil est conçu pour évoluer. Les pistes prévues :</p>
+        <ul>
+          <li>Gestion fine des droits (admin vs commercial).</li>
+          <li>Ajout des offres Lean Management et Formation Continue.</li>
+          <li>Module Comptes prioritaires avec priorité A/B/C (Safran, Aalberts, Equans...).</li>
+          <li>Import automatique depuis l'Excel KPI existant.</li>
+          <li>Export Excel des données pour analyses externes.</li>
+        </ul>
+      </div>
+
+      <div class="aide-block">
+        <h3>9. Qui contacter en cas de problème</h3>
+        <p>Si une erreur s'affiche ou une fonctionnalité ne marche pas, ouvrir la console du navigateur (touche F12, onglet Console) pour voir le message d'erreur précis. La plupart des problèmes viennent d'une mauvaise configuration Supabase (clés API dans le fichier config.js).</p>
+        <p>Pour toute modification de l'outil, contacter l'équipe technique de l'ICAM ou faire appel à un développeur web (compétences requises : HTML, JavaScript, SQL).</p>
       </div>
     </section>
   </main>
@@ -160,24 +289,59 @@
         <h3 id="modal-title">Nouvel événement</h3>
         <button id="modal-close">✕</button>
       </div>
-      <form id="event-form">
+      <form id="event-form" class="clean-form">
         <input type="hidden" id="event-id">
-        <label>Quoi (action) *</label>
-        <input type="text" id="event-quoi" required placeholder="Ex : JPO janvier">
-        <div class="row">
-          <div><label>Source *</label><select id="event-source" required></select></div>
-          <div><label>Date *</label><input type="date" id="event-date" required></div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label>Quoi (action) *</label>
+            <input type="text" id="event-quoi" required placeholder="Ex : JPO janvier">
+          </div>
         </div>
-        <div class="row">
-          <div><label>Responsable</label><select id="event-responsable"></select></div>
-          <div><label>Objectif (nb contacts)</label><input type="number" id="event-objectif" min="0" value="0"></div>
+
+        <div class="form-row form-row-2">
+          <div class="form-field">
+            <label>Source *</label>
+            <select id="event-source" required></select>
+          </div>
+          <div class="form-field">
+            <label>Date *</label>
+            <input type="date" id="event-date" required>
+          </div>
         </div>
-        <label>Préparation / livrables</label>
-        <input type="text" id="event-comment" placeholder="Poster, mailing, support...">
-        <label>Résultat (à remplir après l'événement)</label>
-        <input type="number" id="event-resultat" min="0" placeholder="Nombre de contacts obtenus">
-        <label>Notes</label>
-        <textarea id="event-notes" rows="3"></textarea>
+
+        <div class="form-row form-row-2">
+          <div class="form-field">
+            <label>Responsable</label>
+            <select id="event-responsable"></select>
+          </div>
+          <div class="form-field">
+            <label>Objectif (nb contacts)</label>
+            <input type="number" id="event-objectif" min="0" value="0">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label>Préparation / livrables</label>
+            <input type="text" id="event-comment" placeholder="Poster, mailing, support...">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label>Résultat (à remplir après l'événement)</label>
+            <input type="number" id="event-resultat" min="0" placeholder="Nombre de contacts obtenus">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label>Notes</label>
+            <textarea id="event-notes" rows="3"></textarea>
+          </div>
+        </div>
+
         <div class="modal-footer">
           <button type="button" id="btn-delete" class="btn-danger hidden">Supprimer</button>
           <button type="submit" class="btn-primary">Enregistrer</button>
@@ -192,54 +356,125 @@
         <h3 id="modal-affaire-title">Nouvelle affaire</h3>
         <button id="modal-affaire-close">✕</button>
       </div>
-      <form id="affaire-form">
+      <form id="affaire-form" class="clean-form">
         <input type="hidden" id="affaire-id">
-        <div class="row">
-          <div><label>Client *</label><input type="text" id="affaire-client" required placeholder="Ex : Safran"></div>
-          <div><label>Type</label>
-            <select id="affaire-type">
-              <option>Prospect</option>
-              <option>Client</option>
-            </select>
+
+        <div class="form-section">
+          <h4 class="form-section-title">Identité de l'affaire</h4>
+          <div class="form-row form-row-2">
+            <div class="form-field">
+              <label>Client *</label>
+              <input type="text" id="affaire-client" required placeholder="Ex : Safran">
+            </div>
+            <div class="form-field">
+              <label>Type</label>
+              <select id="affaire-type">
+                <option>Prospect</option>
+                <option>Client</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Intitulé du projet *</label>
+              <input type="text" id="affaire-intitule" required placeholder="Ex : Déploiement Lean">
+            </div>
+          </div>
+          <div class="form-row form-row-2">
+            <div class="form-field">
+              <label>Numéro d'affaire</label>
+              <input type="text" id="affaire-numero" placeholder="GPS_...">
+            </div>
+            <div class="form-field">
+              <label>Responsable</label>
+              <select id="affaire-responsable"></select>
+            </div>
           </div>
         </div>
-        <label>Intitulé du projet *</label>
-        <input type="text" id="affaire-intitule" required placeholder="Ex : Déploiement Lean">
-        <div class="row">
-          <div><label>Numéro d'affaire</label><input type="text" id="affaire-numero" placeholder="GPS_..."></div>
-          <div><label>Responsable</label><select id="affaire-responsable"></select></div>
-        </div>
-        <div class="row">
-          <div><label>État *</label>
-            <select id="affaire-etat" required>
-              <option>Qualification</option>
-              <option>Expression de besoin</option>
-              <option>Proposition envoyée</option>
-              <option>Négociation en cours</option>
-              <option>Contrat validé</option>
-              <option>Contrat refusé</option>
-            </select>
+
+        <div class="form-section">
+          <h4 class="form-section-title">Suivi commercial</h4>
+          <div class="form-row form-row-2">
+            <div class="form-field">
+              <label>État *</label>
+              <select id="affaire-etat" required>
+                <option>Qualification</option>
+                <option>Expression de besoin</option>
+                <option>Proposition envoyée</option>
+                <option>Négociation en cours</option>
+                <option>Contrat validé</option>
+                <option>Contrat refusé</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Niveau de confiance (0 à 1)</label>
+              <input type="number" id="affaire-confiance" min="0" max="1" step="0.05" value="0.5">
+            </div>
           </div>
-          <div><label>Niveau de confiance (0 à 1)</label><input type="number" id="affaire-confiance" min="0" max="1" step="0.05" value="0.5"></div>
-        </div>
-        <div class="row">
-          <div><label>Montant (€)</label><input type="number" id="affaire-montant" min="0" step="100" value="0"></div>
-          <div><label>Période MSI</label>
-            <select id="affaire-periode">
-              <option value="">—</option>
-              <option value="2526B">2526B (févr-juin 2026)</option>
-              <option value="2627A">2627A (sept 2026 - janv 2027)</option>
-              <option value="2627B">2627B (févr-juin 2027)</option>
-            </select>
+          <div class="form-row form-row-2">
+            <div class="form-field">
+              <label>Montant (€)</label>
+              <input type="number" id="affaire-montant" min="0" step="100" value="0">
+            </div>
+            <div class="form-field">
+              <label>Période MSI</label>
+              <select id="affaire-periode">
+                <option value="">—</option>
+                <option value="2526B">2526B (févr-juin 2026)</option>
+                <option value="2627A">2627A (sept 2026 - janv 2027)</option>
+                <option value="2627B">2627B (févr-juin 2027)</option>
+                <option value="2728A">2728A (sept 2027 - janv 2028)</option>
+                <option value="2728B">2728B (févr-juin 2028)</option>
+              </select>
+            </div>
           </div>
         </div>
-        <label>Raison de refus (si applicable)</label>
-        <input type="text" id="affaire-raison" placeholder="Ex : trop cher, pas le bon décideur">
-        <label>Notes</label>
-        <textarea id="affaire-notes" rows="3"></textarea>
+
+        <div class="form-section">
+          <h4 class="form-section-title">Informations complémentaires</h4>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Raison de refus (si applicable)</label>
+              <input type="text" id="affaire-raison" placeholder="Ex : trop cher, pas le bon décideur">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Notes</label>
+              <textarea id="affaire-notes" rows="3"></textarea>
+            </div>
+          </div>
+        </div>
+
         <div class="modal-footer">
           <button type="button" id="btn-delete-affaire" class="btn-danger hidden">Supprimer</button>
           <button type="submit" class="btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-periode" class="modal hidden">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h3>Ajouter une période</h3>
+        <button id="modal-periode-close">✕</button>
+      </div>
+      <form id="periode-form" class="clean-form">
+        <div class="form-row">
+          <div class="form-field">
+            <label>Code période *</label>
+            <input type="text" id="periode-code" required placeholder="Ex : 2728A">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Commentaire</label>
+            <input type="text" id="periode-commentaire" placeholder="Ex : Semestre sept 2027 - janv 2028">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-primary">Ajouter</button>
         </div>
       </form>
     </div>

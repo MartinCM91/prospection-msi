@@ -5,10 +5,14 @@ const MOIS_COURT = ['Janv','Févr','Mars','Avr','Mai','Juin','Juil','Août','Sep
 const ACTIVITES = ['Appels / Contacts','RDV effectués','Propositions envoyées'];
 
 let state = {
-  user: null, sources: [], utilisateurs: [], objectifs: [], evenements: [], affaires: [], suivi: [],
+  user: null,
+  sources: [], utilisateurs: [], objectifs: [], evenements: [], affaires: [], suivi: [],
+  objectifsAnnuels: [],
   annee: new Date().getFullYear(),
   hebdo_annee: new Date().getFullYear(),
-  hebdo_semaine: getCurrentWeek()
+  hebdo_semaine: getCurrentWeek(),
+  cal_annee: new Date().getFullYear(),
+  obj_annee: new Date().getFullYear()
 };
 
 function getCurrentWeek() {
@@ -24,18 +28,24 @@ async function init() {
   const { data: profil } = await sb.from('utilisateurs').select('*').eq('id', state.user.id).single();
   document.getElementById('user-info').textContent = (profil?.prenom || '') + ' ' + (profil?.nom || '');
   await loadData();
-  setupNav(); setupModal(); setupModalAffaire(); setupHebdo();
+  setupNav();
+  setupModal();
+  setupModalAffaire();
+  setupModalPeriode();
+  setupHebdo();
+  setupYearSelectors();
   renderAll();
 }
 
 async function loadData() {
-  const [sources, utilisateurs, objectifs, evenements, affaires, suivi] = await Promise.all([
+  const [sources, utilisateurs, objectifs, evenements, affaires, suivi, objAnnuels] = await Promise.all([
     sb.from('sources').select('*').order('id'),
     sb.from('utilisateurs').select('*').order('prenom'),
     sb.from('objectifs').select('*'),
     sb.from('evenements').select('*').order('date_evenement', { ascending: false }),
     sb.from('affaires').select('*').order('updated_at', { ascending: false }),
-    sb.from('suivi_hebdo').select('*')
+    sb.from('suivi_hebdo').select('*'),
+    sb.from('objectifs_annuels').select('*').order('annee', { ascending: false })
   ]);
   state.sources = sources.data || [];
   state.utilisateurs = utilisateurs.data || [];
@@ -43,6 +53,7 @@ async function loadData() {
   state.evenements = evenements.data || [];
   state.affaires = affaires.data || [];
   state.suivi = suivi.data || [];
+  state.objectifsAnnuels = objAnnuels.data || [];
 }
 
 function statutEvenement(ev) {
@@ -51,6 +62,40 @@ function statutEvenement(ev) {
 }
 
 function formatEuro(n) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n || 0); }
+
+function fillYearSelect(selectEl, current, range = 3) {
+  selectEl.innerHTML = '';
+  const currentYear = new Date().getFullYear();
+  for (let y = currentYear - 1; y <= currentYear + range; y++) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    if (y === current) opt.selected = true;
+    selectEl.appendChild(opt);
+  }
+}
+
+function setupYearSelectors() {
+  const dashYear = document.getElementById('dash-year');
+  fillYearSelect(dashYear, state.annee);
+  dashYear.addEventListener('change', e => {
+    state.annee = parseInt(e.target.value);
+    renderDashboard();
+  });
+
+  const calYear = document.getElementById('year-select');
+  fillYearSelect(calYear, state.cal_annee);
+  calYear.addEventListener('change', e => {
+    state.cal_annee = parseInt(e.target.value);
+    renderCalendar();
+  });
+
+  const objYear = document.getElementById('obj-year');
+  fillYearSelect(objYear, state.obj_annee);
+  objYear.addEventListener('change', e => {
+    state.obj_annee = parseInt(e.target.value);
+    renderObjectifsAnnuels();
+  });
+}
 
 function setupNav() {
   document.querySelectorAll('.tab').forEach(tab => {
@@ -67,31 +112,13 @@ function setupNav() {
   document.getElementById('btn-add-event').addEventListener('click', () => openModal());
   document.getElementById('btn-add-from-cal').addEventListener('click', () => openModal());
   document.getElementById('btn-add-affaire').addEventListener('click', () => openModalAffaire());
-
-  const yearSelect = document.getElementById('year-select');
-  const currentYear = new Date().getFullYear();
-  for (let y = currentYear - 1; y <= currentYear + 1; y++) {
-    const opt = document.createElement('option');
-    opt.value = y; opt.textContent = y;
-    if (y === state.annee) opt.selected = true;
-    yearSelect.appendChild(opt);
-  }
-  yearSelect.addEventListener('change', (e) => {
-    state.annee = parseInt(e.target.value);
-    renderCalendar(); renderDashboard();
-  });
+  document.getElementById('btn-add-periode').addEventListener('click', () => openModalPeriode());
 }
 
 function setupHebdo() {
   const yearSel = document.getElementById('hebdo-year');
   const weekSel = document.getElementById('hebdo-week');
-  const currentYear = new Date().getFullYear();
-  for (let y = currentYear - 1; y <= currentYear + 1; y++) {
-    const opt = document.createElement('option');
-    opt.value = y; opt.textContent = y;
-    if (y === state.hebdo_annee) opt.selected = true;
-    yearSel.appendChild(opt);
-  }
+  fillYearSelect(yearSel, state.hebdo_annee);
   for (let w = 1; w <= 53; w++) {
     const opt = document.createElement('option');
     opt.value = w; opt.textContent = 'S' + w;
@@ -114,6 +141,12 @@ function setupModalAffaire() {
   document.getElementById('modal-affaire').addEventListener('click', (e) => { if (e.target.id === 'modal-affaire') closeModalAffaire(); });
   document.getElementById('affaire-form').addEventListener('submit', saveAffaire);
   document.getElementById('btn-delete-affaire').addEventListener('click', deleteAffaire);
+}
+
+function setupModalPeriode() {
+  document.getElementById('modal-periode-close').addEventListener('click', closeModalPeriode);
+  document.getElementById('modal-periode').addEventListener('click', (e) => { if (e.target.id === 'modal-periode') closeModalPeriode(); });
+  document.getElementById('periode-form').addEventListener('submit', savePeriode);
 }
 
 function openModal(prefill = {}) {
@@ -241,6 +274,27 @@ async function deleteAffaire() {
   else { showToast('Affaire supprimée', 'success'); closeModalAffaire(); await loadData(); renderAll(); }
 }
 
+function openModalPeriode() {
+  document.getElementById('periode-form').reset();
+  document.getElementById('modal-periode').classList.remove('hidden');
+}
+
+function closeModalPeriode() { document.getElementById('modal-periode').classList.add('hidden'); }
+
+async function savePeriode(e) {
+  e.preventDefault();
+  const code = document.getElementById('periode-code').value.trim().toUpperCase();
+  const commentaire = document.getElementById('periode-commentaire').value;
+  if (!code) return;
+  const exists = state.objectifsAnnuels.find(o => o.annee === state.obj_annee && o.periode_msi === code);
+  if (exists) { showToast('Cette période existe déjà', 'error'); return; }
+  const { error } = await sb.from('objectifs_annuels').insert([{
+    annee: state.obj_annee, periode_msi: code, ca_cible: 0, msi_cible: 0, commentaire
+  }]);
+  if (error) showToast('Erreur : ' + error.message, 'error');
+  else { showToast('Période ajoutée', 'success'); closeModalPeriode(); await loadData(); renderObjectifsAnnuels(); renderDashboard(); }
+}
+
 function showToast(msg, type = 'info') {
   const toast = document.getElementById('toast');
   toast.textContent = msg;
@@ -248,25 +302,66 @@ function showToast(msg, type = 'info') {
   setTimeout(() => toast.classList.add('hidden'), 3000);
 }
 
-function renderAll() { renderDashboard(); renderHebdo(); renderAffaires(); renderCalendar(); renderEventsTable(); renderObjectifsTable(); }
+function renderAll() {
+  renderDashboard();
+  renderHebdo();
+  renderAffaires();
+  renderCalendar();
+  renderEventsTable();
+  renderObjectifsAnnuels();
+  renderObjectifsTable();
+}
 
 function renderDashboard() {
+  const yearStart = new Date(state.annee, 0, 1);
+  const yearEnd = new Date(state.annee, 11, 31);
+  const affairesAnnee = state.affaires.filter(a => {
+    const periodeStr = a.periode_msi || '';
+    return periodeStr.includes(String(state.annee).substring(2)) || true;
+  });
+
+  const objAnnuelGlobal = state.objectifsAnnuels.find(o => o.annee === state.annee && o.periode_msi === 'ANNUEL');
+  const caObjectif = objAnnuelGlobal?.ca_cible || 0;
+  const msiObjectif = objAnnuelGlobal?.msi_cible || 0;
+
   const affairesActives = state.affaires.filter(a => !['Contrat refusé'].includes(a.etat));
   const affairesGagnees = state.affaires.filter(a => a.etat === 'Contrat validé');
   const propEnvoyees = state.affaires.filter(a => ['Proposition envoyée','Négociation en cours','Contrat validé','Contrat refusé'].includes(a.etat));
-  const totalRDV = state.suivi.filter(s => s.type_activite === 'RDV effectués').reduce((sum, s) => sum + (s.nombre || 0), 0);
+  const totalRDV = state.suivi.filter(s => s.type_activite === 'RDV effectués' && s.annee === state.annee).reduce((sum, s) => sum + (s.nombre || 0), 0);
   const totalProp = propEnvoyees.length;
   const caEnCours = affairesActives.filter(a => a.etat !== 'Contrat validé').reduce((s, a) => s + (a.montant * a.niveau_confiance || 0), 0);
   const caSigne = affairesGagnees.reduce((s, a) => s + (a.montant || 0), 0);
   const tauxProp = totalRDV > 0 ? Math.round((totalProp / totalRDV) * 100) : 0;
   const tauxSign = totalProp > 0 ? Math.round((affairesGagnees.length / totalProp) * 100) : 0;
+  const atteinteCA = caObjectif > 0 ? Math.round((caSigne / caObjectif) * 100) : 0;
+
   document.getElementById('kpi-rdv').textContent = totalRDV;
   document.getElementById('kpi-propositions').textContent = totalProp;
   document.getElementById('kpi-ca-cours').textContent = formatEuro(caEnCours);
   document.getElementById('kpi-ca-signe').textContent = formatEuro(caSigne);
-  document.getElementById('kpi-taux-prop').textContent = tauxProp + ' %';
-  document.getElementById('kpi-taux-sign').textContent = tauxSign + ' %';
-  document.getElementById('kpi-affaires-gagne').textContent = affairesGagnees.length;
+  document.getElementById('kpi-ca-objectif').textContent = formatEuro(caObjectif);
+  document.getElementById('kpi-atteinte-ca').textContent = atteinteCA + ' %';
+  document.getElementById('kpi-msi-signe').textContent = affairesGagnees.length;
+  document.getElementById('kpi-msi-objectif').textContent = msiObjectif;
+
+  const periodesAnnee = state.objectifsAnnuels.filter(o => o.annee === state.annee && o.periode_msi !== 'ANNUEL');
+  const tbodyPer = document.querySelector('#periodes-table tbody');
+  tbodyPer.innerHTML = '';
+  if (periodesAnnee.length === 0) {
+    tbodyPer.innerHTML = '<tr><td colspan="7" class="empty">Aucune période définie pour ' + state.annee + '. Allez dans Objectifs pour les ajouter.</td></tr>';
+  } else {
+    periodesAnnee.forEach(p => {
+      const affairesPeriode = state.affaires.filter(a => a.periode_msi === p.periode_msi);
+      const caSignePer = affairesPeriode.filter(a => a.etat === 'Contrat validé').reduce((s, a) => s + (a.montant || 0), 0);
+      const caCoursPer = affairesPeriode.filter(a => !['Contrat validé','Contrat refusé'].includes(a.etat)).reduce((s, a) => s + (a.montant * a.niveau_confiance || 0), 0);
+      const msiSignePer = affairesPeriode.filter(a => a.etat === 'Contrat validé').length;
+      const atteintePer = p.ca_cible > 0 ? Math.round((caSignePer / p.ca_cible) * 100) : 0;
+      const cls = atteintePer >= 100 ? 'badge-success' : (atteintePer >= 50 ? 'badge-warning' : 'badge-info');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td><strong>${p.periode_msi}</strong></td><td>${formatEuro(p.ca_cible)} €</td><td>${formatEuro(caSignePer)} €</td><td>${formatEuro(caCoursPer)} €</td><td><span class="badge ${cls}">${atteintePer} %</span></td><td>${p.msi_cible}</td><td>${msiSignePer}</td>`;
+      tbodyPer.appendChild(tr);
+    });
+  }
 
   const etats = ['Qualification','Expression de besoin','Proposition envoyée','Négociation en cours','Contrat validé','Contrat refusé'];
   const tbody = document.querySelector('#etats-table tbody');
@@ -283,15 +378,19 @@ function renderDashboard() {
 
   const tbody2 = document.querySelector('#commerciaux-table tbody');
   tbody2.innerHTML = '';
-  state.utilisateurs.forEach(u => {
-    const rdv = state.suivi.filter(s => s.utilisateur_id === u.id && s.type_activite === 'RDV effectués').reduce((sum, s) => sum + (s.nombre || 0), 0);
-    const prop = state.suivi.filter(s => s.utilisateur_id === u.id && s.type_activite === 'Propositions envoyées').reduce((sum, s) => sum + (s.nombre || 0), 0);
-    const cours = state.affaires.filter(a => a.responsable_id === u.id && !['Contrat validé','Contrat refusé'].includes(a.etat)).reduce((s, a) => s + (a.montant * a.niveau_confiance || 0), 0);
-    const signe = state.affaires.filter(a => a.responsable_id === u.id && a.etat === 'Contrat validé').reduce((s, a) => s + (a.montant || 0), 0);
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td><strong>${u.prenom || ''} ${u.nom || ''}</strong></td><td>${rdv}</td><td>${prop}</td><td>${formatEuro(cours)} €</td><td>${formatEuro(signe)} €</td>`;
-    tbody2.appendChild(tr);
-  });
+  if (state.utilisateurs.length === 0) {
+    tbody2.innerHTML = '<tr><td colspan="5" class="empty">Aucun commercial enregistré.</td></tr>';
+  } else {
+    state.utilisateurs.forEach(u => {
+      const rdv = state.suivi.filter(s => s.utilisateur_id === u.id && s.type_activite === 'RDV effectués').reduce((sum, s) => sum + (s.nombre || 0), 0);
+      const prop = state.suivi.filter(s => s.utilisateur_id === u.id && s.type_activite === 'Propositions envoyées').reduce((sum, s) => sum + (s.nombre || 0), 0);
+      const cours = state.affaires.filter(a => a.responsable_id === u.id && !['Contrat validé','Contrat refusé'].includes(a.etat)).reduce((s, a) => s + (a.montant * a.niveau_confiance || 0), 0);
+      const signe = state.affaires.filter(a => a.responsable_id === u.id && a.etat === 'Contrat validé').reduce((s, a) => s + (a.montant || 0), 0);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td><strong>${u.prenom || ''} ${u.nom || ''}</strong></td><td>${rdv}</td><td>${prop}</td><td>${formatEuro(cours)} €</td><td>${formatEuro(signe)} €</td>`;
+      tbody2.appendChild(tr);
+    });
+  }
 }
 
 function renderHebdo() {
@@ -309,7 +408,7 @@ function renderHebdo() {
       const rec = state.suivi.find(s => s.utilisateur_id === u.id && s.annee === state.hebdo_annee && s.semaine === state.hebdo_semaine && s.type_activite === act);
       const val = rec?.nombre ?? 0;
       total += val;
-      html += `<td><input type="number" class="hebdo-input" data-user="${u.id}" data-activite="${act}" value="${val}" min="0" style="width:80px;"></td>`;
+      html += `<td><input type="number" class="hebdo-input" data-user="${u.id}" data-activite="${act}" value="${val}" min="0" style="width:80px;padding:6px 8px;border:1px solid #D3D1C7;border-radius:4px;"></td>`;
     });
     html += `<td><strong>${total}</strong></td>`;
     tr.innerHTML = html;
@@ -373,7 +472,7 @@ function renderCalendar() {
   header.innerHTML = '<div class="cal-cell cal-source-header">Source</div>' +
     MOIS_COURT.map((m, i) => `<div class="cal-cell cal-month-header${(i===6||i===7)?' cal-vacation':''}">${m}</div>`).join('');
   container.appendChild(header);
-  const evAnnee = state.evenements.filter(e => new Date(e.date_evenement).getFullYear() === state.annee);
+  const evAnnee = state.evenements.filter(e => new Date(e.date_evenement).getFullYear() === state.cal_annee);
   state.sources.forEach(src => {
     const row = document.createElement('div');
     row.className = 'cal-row';
@@ -392,7 +491,7 @@ function renderCalendar() {
     cell.addEventListener('click', () => {
       const srcId = parseInt(cell.dataset.source);
       const month = parseInt(cell.dataset.month);
-      const date = new Date(state.annee, month, 15).toISOString().split('T')[0];
+      const date = new Date(state.cal_annee, month, 15).toISOString().split('T')[0];
       const src = state.sources.find(s => s.id === srcId);
       openModal({ source_id: srcId, date_evenement: date, quoi: src.nom + ' ' + MOIS[month].toLowerCase() });
     });
@@ -430,6 +529,70 @@ function renderEventsTable() {
   });
 }
 
+function renderObjectifsAnnuels() {
+  const tbody = document.querySelector('#obj-annuels-table tbody');
+  tbody.innerHTML = '';
+  const list = state.objectifsAnnuels.filter(o => o.annee === state.obj_annee);
+
+  let hasAnnuel = list.find(o => o.periode_msi === 'ANNUEL');
+  if (!hasAnnuel) {
+    const tr = document.createElement('tr');
+    tr.style.background = '#FFF9E6';
+    tr.innerHTML = `<td><strong>ANNUEL</strong> <span class="badge badge-warning">À créer</span></td>
+      <td><input type="number" class="obj-annuel-input" data-periode="ANNUEL" data-field="ca_cible" value="0" min="0"></td>
+      <td><input type="number" class="obj-annuel-input" data-periode="ANNUEL" data-field="msi_cible" value="0" min="0"></td>
+      <td><input type="text" class="obj-annuel-input" data-periode="ANNUEL" data-field="commentaire" placeholder="Objectif global ${state.obj_annee}"></td>
+      <td></td>`;
+    tbody.appendChild(tr);
+  }
+
+  const sorted = [...list].sort((a, b) => {
+    if (a.periode_msi === 'ANNUEL') return -1;
+    if (b.periode_msi === 'ANNUEL') return 1;
+    return (a.periode_msi || '').localeCompare(b.periode_msi || '');
+  });
+
+  sorted.forEach(obj => {
+    const tr = document.createElement('tr');
+    const isAnnuel = obj.periode_msi === 'ANNUEL';
+    if (isAnnuel) tr.style.background = '#F0F4F9';
+    tr.innerHTML = `<td><strong>${obj.periode_msi}</strong></td>
+      <td><input type="number" class="obj-annuel-input" data-id="${obj.id}" data-field="ca_cible" value="${obj.ca_cible || 0}" min="0"></td>
+      <td><input type="number" class="obj-annuel-input" data-id="${obj.id}" data-field="msi_cible" value="${obj.msi_cible || 0}" min="0"></td>
+      <td><input type="text" class="obj-annuel-input" data-id="${obj.id}" data-field="commentaire" value="${obj.commentaire || ''}"></td>
+      <td>${isAnnuel ? '' : `<button class="btn-icon" data-delete="${obj.id}" title="Supprimer">✕</button>`}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.obj-annuel-input').forEach(input => {
+    input.addEventListener('change', async () => {
+      const id = input.dataset.id;
+      const periode = input.dataset.periode;
+      const field = input.dataset.field;
+      const val = field === 'commentaire' ? input.value : (parseFloat(input.value) || 0);
+
+      if (id) {
+        await sb.from('objectifs_annuels').update({ [field]: val, updated_at: new Date().toISOString() }).eq('id', id);
+      } else if (periode === 'ANNUEL') {
+        const obj = { annee: state.obj_annee, periode_msi: 'ANNUEL', ca_cible: 0, msi_cible: 0, commentaire: '' };
+        obj[field] = val;
+        await sb.from('objectifs_annuels').insert([obj]);
+      }
+      await loadData(); renderObjectifsAnnuels(); renderDashboard();
+      showToast('Objectif mis à jour', 'success');
+    });
+  });
+
+  tbody.querySelectorAll('[data-delete]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Supprimer cette période ?')) return;
+      await sb.from('objectifs_annuels').delete().eq('id', btn.dataset.delete);
+      await loadData(); renderObjectifsAnnuels(); renderDashboard();
+      showToast('Période supprimée', 'success');
+    });
+  });
+}
+
 function renderObjectifsTable() {
   const tbody = document.querySelector('#objectifs-table tbody');
   tbody.innerHTML = '';
@@ -448,7 +611,7 @@ function renderObjectifsTable() {
       const existing = state.objectifs.find(o => o.source_id === srcId && o.periode === periode);
       if (existing) await sb.from('objectifs').update({ cible_contacts: cible }).eq('id', existing.id);
       else await sb.from('objectifs').insert([{ source_id: srcId, periode, cible_contacts: cible }]);
-      await loadData(); renderObjectifsTable(); renderDashboard();
+      await loadData(); renderObjectifsTable();
       showToast('Objectif mis à jour', 'success');
     });
   });

@@ -76,13 +76,47 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .form-field-label { display: block; font-size: 12px; font-weight: 500; color: #5F5E5A; margin-bottom: 4px; }
 
 /* === KPI === */
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 32px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
 .kpi-card { background: white; padding: 16px 20px; border-radius: 8px; border: 1px solid #E5E3DC; }
 .kpi-label { font-size: 12px; color: #888780; margin-bottom: 4px; }
 .kpi-value { font-size: 26px; font-weight: 600; color: #1F3864; }
 .kpi-objectif { font-size: 11px; color: #888780; margin-top: 2px; }
 .kpi-value.kpi-alert { color: #A32D2D; }
 .kpi-value.kpi-ok { color: #1D9E75; }
+
+/* === KPI mis en avant (les 3 prioritaires) === */
+.kpi-highlight { 
+  display: grid; 
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
+  gap: 12px; 
+  margin-bottom: 24px; 
+}
+.kpi-card-big {
+  background: white;
+  border: 2px solid #E5E3DC;
+  border-radius: 10px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card-big.kpi-card-alert { border-color: #F09595; background: linear-gradient(to bottom, #FCEBEB 0%, white 50%); }
+.kpi-card-big.kpi-card-ok { border-color: #95D5BB; background: linear-gradient(to bottom, #E1F5EE 0%, white 50%); }
+.kpi-card-big-label { font-size: 13px; font-weight: 600; color: #5F5E5A; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 8px; }
+.kpi-card-big-value { font-size: 36px; font-weight: 700; color: #1F3864; line-height: 1; margin-bottom: 4px; }
+.kpi-card-big-value.kpi-alert { color: #A32D2D; }
+.kpi-card-big-value.kpi-ok { color: #1D9E75; }
+.kpi-card-big-objectif { font-size: 12px; color: #888780; }
+.kpi-card-big-status { 
+  position: absolute; 
+  top: 14px; 
+  right: 14px; 
+  font-size: 11px; 
+  font-weight: 600; 
+  padding: 3px 10px; 
+  border-radius: 12px; 
+}
+.kpi-card-big-status.alert { background: #FCEBEB; color: #791F1F; }
+.kpi-card-big-status.ok { background: #E1F5EE; color: #085041; }
 
 /* === TABLES === */
 .table-wrapper { background: white; border-radius: 8px; border: 1px solid #E5E3DC; overflow: hidden; overflow-x: auto; margin-bottom: 16px; }
@@ -103,13 +137,16 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .badge-priorite-B { background: #FAEEDA; color: #633806; }
 .badge-priorite-C { background: #F1EFE8; color: #5F5E5A; }
 
-/* === CALENDRIER === */
+/* === CALENDRIER HIÉRARCHIQUE === */
 .calendar-grid { background: white; border-radius: 8px; border: 1px solid #E5E3DC; padding: 16px; overflow-x: auto; }
-.cal-row { display: grid; grid-template-columns: 160px repeat(12, 1fr); gap: 2px; min-width: 800px; }
+.cal-row { display: grid; grid-template-columns: 200px repeat(12, 1fr); gap: 2px; min-width: 900px; }
 .cal-header { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid #E5E3DC; }
 .cal-cell { height: 30px; display: flex; align-items: center; justify-content: center; font-size: 11px; border-radius: 4px; }
-.cal-source-header, .cal-source-label { justify-content: flex-start; padding: 0 8px; font-weight: 500; color: #5F5E5A; }
-.cal-source-label { color: #2C2C2A; font-size: 11px; }
+.cal-source-header { justify-content: flex-start; padding: 0 8px; font-weight: 600; color: #5F5E5A; }
+.cal-source-label { justify-content: flex-start; padding: 0 8px; color: #2C2C2A; font-size: 12px; }
+.cal-source-parent { font-weight: 600; color: #1F3864; background: #F0F4F9; padding-left: 8px; }
+.cal-source-child { padding-left: 24px !important; color: #5F5E5A; font-size: 11px; }
+.cal-source-child::before { content: '└ '; color: #B4B2A9; margin-right: 2px; }
 .cal-month-header { color: #888780; font-weight: 500; }
 .cal-empty { background: #FAFAF7; border: 1px solid #E5E3DC; cursor: pointer; }
 .cal-empty:hover { background: #EEEDFE; border-color: #7F77DD; }
@@ -117,7 +154,7 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .cal-filled:hover { background: #534AB7; }
 .cal-vacation { background: repeating-linear-gradient(45deg, transparent, transparent 3px, #D3D1C7 3px, #D3D1C7 4px); color: #888780; }
 
-/* === KANBAN === */
+/* === KANBAN avec drag & drop === */
 .kanban-board {
   display: flex;
   gap: 10px;
@@ -135,6 +172,13 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
   display: flex;
   flex-direction: column;
   max-height: 75vh;
+  transition: background 0.15s;
+}
+
+.kanban-column.drag-over {
+  background: #EEEDFE;
+  border-color: #7F77DD;
+  box-shadow: 0 0 0 2px rgba(127, 119, 221, 0.2);
 }
 
 .kanban-col-header {
@@ -146,31 +190,9 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
   border-bottom: 2px solid;
 }
 
-.kanban-col-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #2C2C2A;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.kanban-col-count {
-  background: #F1EFE8;
-  color: #5F5E5A;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-
-.kanban-col-body {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 100px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.kanban-col-title { font-size: 12px; font-weight: 600; color: #2C2C2A; text-transform: uppercase; letter-spacing: 0.3px; }
+.kanban-col-count { background: #F1EFE8; color: #5F5E5A; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+.kanban-col-body { flex: 1; overflow-y: auto; min-height: 100px; display: flex; flex-direction: column; gap: 8px; }
 
 .kanban-card {
   background: white;
@@ -178,8 +200,9 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
   border-left: 3px solid;
   border-radius: 6px;
   padding: 10px 12px;
-  cursor: pointer;
+  cursor: grab;
   transition: all 0.15s;
+  user-select: none;
 }
 
 .kanban-card:hover {
@@ -187,93 +210,30 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
   transform: translateY(-1px);
 }
 
-.kanban-card-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #2C2C2A;
-  margin-bottom: 4px;
+.kanban-card:active {
+  cursor: grabbing;
 }
 
-.kanban-card-entreprise {
-  font-size: 12px;
-  color: #1F3864;
-  font-weight: 500;
-  margin-bottom: 6px;
+.kanban-card.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
 }
 
-.kanban-card-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 11px;
-  color: #888780;
-}
-
-.kanban-card-montant {
-  font-weight: 600;
-  color: #1F3864;
-}
-
-.kanban-empty {
-  text-align: center;
-  color: #B4B2A9;
-  font-size: 12px;
-  padding: 16px;
-  font-style: italic;
-}
+.kanban-card-title { font-size: 13px; font-weight: 600; color: #2C2C2A; margin-bottom: 4px; }
+.kanban-card-entreprise { font-size: 12px; color: #1F3864; font-weight: 500; margin-bottom: 6px; }
+.kanban-card-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #888780; }
+.kanban-card-montant { font-weight: 600; color: #1F3864; }
+.kanban-empty { text-align: center; color: #B4B2A9; font-size: 12px; padding: 16px; font-style: italic; }
 
 /* === ENTREPRISES === */
-.entreprises-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-}
-
-.entreprise-card {
-  background: white;
-  border: 1px solid #E5E3DC;
-  border-radius: 8px;
-  padding: 16px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.entreprise-card:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  border-color: #1F3864;
-}
-
-.entreprise-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 8px;
-}
-
-.entreprise-card-nom {
-  font-size: 15px;
-  font-weight: 600;
-  color: #2C2C2A;
-}
-
-.entreprise-card-secteur {
-  font-size: 12px;
-  color: #888780;
-  margin-bottom: 12px;
-}
-
-.entreprise-card-stats {
-  display: flex;
-  gap: 12px;
-  font-size: 12px;
-  color: #5F5E5A;
-  padding-top: 8px;
-  border-top: 1px solid #F5F5F2;
-}
-
-.entreprise-card-stat strong {
-  color: #1F3864;
-}
+.entreprises-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.entreprise-card { background: white; border: 1px solid #E5E3DC; border-radius: 8px; padding: 16px; cursor: pointer; transition: all 0.15s; }
+.entreprise-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-color: #1F3864; }
+.entreprise-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.entreprise-card-nom { font-size: 15px; font-weight: 600; color: #2C2C2A; }
+.entreprise-card-secteur { font-size: 12px; color: #888780; margin-bottom: 12px; }
+.entreprise-card-stats { display: flex; gap: 12px; font-size: 12px; color: #5F5E5A; padding-top: 8px; border-top: 1px solid #F5F5F2; }
+.entreprise-card-stat strong { color: #1F3864; }
 
 /* === MODALES === */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
@@ -298,41 +258,12 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .form-field textarea { resize: vertical; min-height: 60px; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; padding-top: 16px; border-top: 1px solid #E5E3DC; }
 
-/* === LISTE D'ACTIONS DANS FORMULAIRE CIBLE === */
-.action-item, .contact-item {
-  background: white;
-  border: 1px solid #E5E3DC;
-  border-radius: 6px;
-  padding: 10px 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-
-.action-item-content, .contact-item-content {
-  flex: 1;
-}
-
-.action-item-title, .contact-item-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: #2C2C2A;
-  margin-bottom: 2px;
-}
-
-.action-item-meta, .contact-item-meta {
-  font-size: 11px;
-  color: #888780;
-}
-
-.action-item.terminee {
-  opacity: 0.5;
-}
-
-.action-item.terminee .action-item-title {
-  text-decoration: line-through;
-}
+.action-item, .contact-item { background: white; border: 1px solid #E5E3DC; border-radius: 6px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.action-item-content, .contact-item-content { flex: 1; }
+.action-item-title, .contact-item-title { font-size: 13px; font-weight: 500; color: #2C2C2A; margin-bottom: 2px; }
+.action-item-meta, .contact-item-meta { font-size: 11px; color: #888780; }
+.action-item.terminee { opacity: 0.5; }
+.action-item.terminee .action-item-title { text-decoration: line-through; }
 
 /* === TOAST === */
 .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 8px; background: #2C2C2A; color: white; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 200; }

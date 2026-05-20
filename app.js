@@ -13,12 +13,10 @@ let state = {
   hebdo_semaine: getCurrentWeek(),
   cal_annee: new Date().getFullYear(),
   obj_annee: new Date().getFullYear(),
-  plan_periode: '',
-  plan_responsable: '',
-  ent_filter: '',
-  cal_filter_groupe: '',
-  kpi_rdv_cible: 4,
-  kpi_prop_cible: 8
+  plan_periode: '', plan_responsable: '',
+  ent_filter: '', cal_filter_groupe: '',
+  kpi_rdv_cible: 4, kpi_prop_cible: 8,
+  draggedCibleId: null
 };
 
 function getCurrentWeek() {
@@ -33,24 +31,16 @@ async function init() {
   state.user = session.user;
   const { data: profil } = await sb.from('utilisateurs').select('*').eq('id', state.user.id).single();
   document.getElementById('user-info').textContent = (profil?.prenom || '') + ' ' + (profil?.nom || '');
-  
-  // Charger les cibles KPI depuis localStorage (pour pérennité)
   state.kpi_rdv_cible = parseInt(localStorage.getItem('kpi_rdv_cible') || '4');
   state.kpi_prop_cible = parseInt(localStorage.getItem('kpi_prop_cible') || '8');
-  
   await loadData();
-  setupNav();
-  setupAllModals();
-  setupHebdo();
-  setupYearSelectors();
-  setupFilters();
-  setupKpiCibles();
+  setupNav(); setupAllModals(); setupHebdo(); setupYearSelectors(); setupFilters(); setupKpiCibles();
   renderAll();
 }
 
 async function loadData() {
   const results = await Promise.all([
-    sb.from('sources').select('*').order('groupe', { ascending: true }).order('nom', { ascending: true }),
+    sb.from('sources').select('*').order('ordre_affichage', { ascending: true }).order('nom'),
     sb.from('utilisateurs').select('*').order('prenom'),
     sb.from('objectifs').select('*'),
     sb.from('evenements').select('*').order('date_evenement', { ascending: false }),
@@ -81,54 +71,50 @@ function formatEuro(n) { return new Intl.NumberFormat('fr-FR', { maximumFraction
 
 function fillYearSelect(selectEl, current, range = 3) {
   selectEl.innerHTML = '';
-  const currentYear = new Date().getFullYear();
-  for (let y = currentYear - 1; y <= currentYear + range; y++) {
-    const opt = document.createElement('option');
-    opt.value = y; opt.textContent = y;
-    if (y === current) opt.selected = true;
-    selectEl.appendChild(opt);
+  const cy = new Date().getFullYear();
+  for (let y = cy - 1; y <= cy + range; y++) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    if (y === current) o.selected = true;
+    selectEl.appendChild(o);
   }
 }
 
 function setupYearSelectors() {
   fillYearSelect(document.getElementById('dash-year'), state.annee);
   document.getElementById('dash-year').addEventListener('change', e => { state.annee = parseInt(e.target.value); renderDashboard(); });
-
   fillYearSelect(document.getElementById('year-select'), state.cal_annee);
   document.getElementById('year-select').addEventListener('change', e => { state.cal_annee = parseInt(e.target.value); renderCalendar(); });
-
   fillYearSelect(document.getElementById('obj-year'), state.obj_annee);
   document.getElementById('obj-year').addEventListener('change', e => { state.obj_annee = parseInt(e.target.value); renderObjectifsAnnuels(); });
 }
 
 function setupFilters() {
   document.getElementById('plan-periode').addEventListener('change', e => { state.plan_periode = e.target.value; renderKanban(); });
-
   const planResp = document.getElementById('plan-responsable');
   planResp.innerHTML = '<option value="">Tous</option>';
   state.utilisateurs.forEach(u => {
-    const opt = document.createElement('option');
-    opt.value = u.id; opt.textContent = (u.prenom||'')+' '+(u.nom||'');
-    planResp.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
+    planResp.appendChild(o);
   });
   planResp.addEventListener('change', e => { state.plan_responsable = e.target.value; renderKanban(); });
-
   document.getElementById('ent-filter-priorite').addEventListener('change', e => { state.ent_filter = e.target.value; renderEntreprises(); });
   document.getElementById('cal-filter-groupe').addEventListener('change', e => { state.cal_filter_groupe = e.target.value; renderCalendar(); });
 }
 
 function setupKpiCibles() {
-  const rdvInput = document.getElementById('kpi-rdv-cible');
-  const propInput = document.getElementById('kpi-prop-cible');
-  rdvInput.value = state.kpi_rdv_cible;
-  propInput.value = state.kpi_prop_cible;
-  rdvInput.addEventListener('change', e => {
+  const r = document.getElementById('kpi-rdv-cible');
+  const p = document.getElementById('kpi-prop-cible');
+  r.value = state.kpi_rdv_cible;
+  p.value = state.kpi_prop_cible;
+  r.addEventListener('change', e => {
     state.kpi_rdv_cible = parseInt(e.target.value) || 4;
     localStorage.setItem('kpi_rdv_cible', state.kpi_rdv_cible);
     renderDashboard();
     showToast('Objectif RDV mis à jour', 'success');
   });
-  propInput.addEventListener('change', e => {
+  p.addEventListener('change', e => {
     state.kpi_prop_cible = parseInt(e.target.value) || 8;
     localStorage.setItem('kpi_prop_cible', state.kpi_prop_cible);
     renderDashboard();
@@ -145,9 +131,7 @@ function setupNav() {
       document.getElementById('view-' + tab.dataset.tab).classList.add('active');
     });
   });
-  document.getElementById('btn-logout').addEventListener('click', async () => {
-    await sb.auth.signOut(); window.location.href = 'index.html';
-  });
+  document.getElementById('btn-logout').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
   document.getElementById('btn-add-event').addEventListener('click', () => openModal());
   document.getElementById('btn-add-from-cal').addEventListener('click', () => openModal());
   document.getElementById('btn-add-affaire').addEventListener('click', () => openModalAffaire());
@@ -161,54 +145,47 @@ function setupHebdo() {
   const weekSel = document.getElementById('hebdo-week');
   fillYearSelect(yearSel, state.hebdo_annee);
   for (let w = 1; w <= 53; w++) {
-    const opt = document.createElement('option');
-    opt.value = w; opt.textContent = 'S' + w;
-    if (w === state.hebdo_semaine) opt.selected = true;
-    weekSel.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = w; o.textContent = 'S' + w;
+    if (w === state.hebdo_semaine) o.selected = true;
+    weekSel.appendChild(o);
   }
   yearSel.addEventListener('change', e => { state.hebdo_annee = parseInt(e.target.value); renderHebdo(); });
   weekSel.addEventListener('change', e => { state.hebdo_semaine = parseInt(e.target.value); renderHebdo(); });
 }
 
 function setupAllModals() {
-  // Événement
   document.getElementById('modal-close').addEventListener('click', () => closeM('modal'));
   document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeM('modal'); });
   document.getElementById('event-form').addEventListener('submit', saveEvent);
   document.getElementById('btn-delete').addEventListener('click', deleteEvent);
 
-  // Affaire
   document.getElementById('modal-affaire-close').addEventListener('click', () => closeM('modal-affaire'));
   document.getElementById('modal-affaire').addEventListener('click', e => { if (e.target.id === 'modal-affaire') closeM('modal-affaire'); });
   document.getElementById('affaire-form').addEventListener('submit', saveAffaire);
   document.getElementById('btn-delete-affaire').addEventListener('click', deleteAffaire);
 
-  // Période
   document.getElementById('modal-periode-close').addEventListener('click', () => closeM('modal-periode'));
   document.getElementById('modal-periode').addEventListener('click', e => { if (e.target.id === 'modal-periode') closeM('modal-periode'); });
   document.getElementById('periode-form').addEventListener('submit', savePeriode);
 
-  // Cible MSI
   document.getElementById('modal-cible-close').addEventListener('click', () => closeM('modal-cible'));
   document.getElementById('modal-cible').addEventListener('click', e => { if (e.target.id === 'modal-cible') closeM('modal-cible'); });
   document.getElementById('cible-form').addEventListener('submit', saveCible);
   document.getElementById('btn-delete-cible').addEventListener('click', deleteCible);
   document.getElementById('btn-add-action').addEventListener('click', () => openModalAction());
 
-  // Entreprise
   document.getElementById('modal-entreprise-close').addEventListener('click', () => closeM('modal-entreprise'));
   document.getElementById('modal-entreprise').addEventListener('click', e => { if (e.target.id === 'modal-entreprise') closeM('modal-entreprise'); });
   document.getElementById('entreprise-form').addEventListener('submit', saveEntreprise);
   document.getElementById('btn-delete-entreprise').addEventListener('click', deleteEntreprise);
   document.getElementById('btn-add-contact').addEventListener('click', () => openModalContact());
 
-  // Contact
   document.getElementById('modal-contact-close').addEventListener('click', () => closeM('modal-contact'));
   document.getElementById('modal-contact').addEventListener('click', e => { if (e.target.id === 'modal-contact') closeM('modal-contact'); });
   document.getElementById('contact-form').addEventListener('submit', saveContact);
   document.getElementById('btn-delete-contact').addEventListener('click', deleteContact);
 
-  // Action
   document.getElementById('modal-action-close').addEventListener('click', () => closeM('modal-action'));
   document.getElementById('modal-action').addEventListener('click', e => { if (e.target.id === 'modal-action') closeM('modal-action'); });
   document.getElementById('action-form').addEventListener('submit', saveAction);
@@ -216,12 +193,11 @@ function setupAllModals() {
 }
 
 function closeM(id) { document.getElementById(id).classList.add('hidden'); }
-
 function showToast(msg, type = 'info') {
-  const toast = document.getElementById('toast');
-  toast.textContent = msg;
-  toast.className = 'toast toast-' + type;
-  setTimeout(() => toast.classList.add('hidden'), 3000);
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast toast-' + type;
+  setTimeout(() => t.classList.add('hidden'), 3000);
 }
 
 // ============================================================
@@ -237,10 +213,10 @@ function openModalCible(prefill = {}) {
   const entSel = document.getElementById('cible-entreprise');
   entSel.innerHTML = '<option value="">— Choisir —</option>';
   state.entreprises.forEach(e => {
-    const opt = document.createElement('option');
-    opt.value = e.id; opt.textContent = e.nom + ' [' + e.priorite + ']';
-    if (prefill.entreprise_id === e.id) opt.selected = true;
-    entSel.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = e.id; o.textContent = e.nom + ' [' + e.priorite + ']';
+    if (prefill.entreprise_id === e.id) o.selected = true;
+    entSel.appendChild(o);
   });
   entSel.addEventListener('change', () => updateContactsList());
   updateContactsList(prefill.contact_principal_id);
@@ -248,38 +224,41 @@ function openModalCible(prefill = {}) {
   const respSel = document.getElementById('cible-responsable');
   respSel.innerHTML = '<option value="">—</option>';
   state.utilisateurs.forEach(u => {
-    const opt = document.createElement('option');
-    opt.value = u.id; opt.textContent = (u.prenom||'')+' '+(u.nom||'');
-    if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) opt.selected = true;
-    respSel.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
+    if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) o.selected = true;
+    respSel.appendChild(o);
   });
 
   const srcSel = document.getElementById('cible-source');
   srcSel.innerHTML = '<option value="">—</option>';
   state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s.id; opt.textContent = (s.groupe ? '['+s.groupe+'] ' : '') + s.nom;
-    if (prefill.source_id === s.id) opt.selected = true;
-    srcSel.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = s.id;
+    // Indenter les sources enfants
+    const prefix = s.parent_id ? '  └ ' : '';
+    o.textContent = prefix + s.nom;
+    if (prefill.source_id === s.id) o.selected = true;
+    srcSel.appendChild(o);
   });
 
   const etapeSel = document.getElementById('cible-etape');
   etapeSel.innerHTML = '';
   state.etapes.forEach(et => {
-    const opt = document.createElement('option');
-    opt.value = et.numero; opt.textContent = et.numero + '. ' + et.libelle;
-    if (prefill.etape === et.numero) opt.selected = true;
-    etapeSel.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = et.numero; o.textContent = et.numero + '. ' + et.libelle;
+    if (prefill.etape === et.numero) o.selected = true;
+    etapeSel.appendChild(o);
   });
 
   const evSel = document.getElementById('cible-evenement');
   evSel.innerHTML = '<option value="">— Aucun —</option>';
   state.evenements.forEach(ev => {
-    const opt = document.createElement('option');
-    opt.value = ev.id;
-    opt.textContent = ev.quoi + ' (' + new Date(ev.date_evenement).toLocaleDateString('fr-FR') + ')';
-    if (prefill.evenement_id === ev.id) opt.selected = true;
-    evSel.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = ev.id;
+    o.textContent = ev.quoi + ' (' + new Date(ev.date_evenement).toLocaleDateString('fr-FR') + ')';
+    if (prefill.evenement_id === ev.id) o.selected = true;
+    evSel.appendChild(o);
   });
 
   if (prefill.id) {
@@ -290,7 +269,6 @@ function openModalCible(prefill = {}) {
     document.getElementById('cible-notes').value = prefill.notes || '';
     renderActionsList(prefill.id);
   }
-
   document.getElementById('modal-cible').classList.remove('hidden');
 }
 
@@ -299,11 +277,11 @@ function updateContactsList(selectedId = null) {
   const ctSel = document.getElementById('cible-contact');
   ctSel.innerHTML = '<option value="">— Aucun —</option>';
   state.contacts.filter(c => c.entreprise_id === entId).forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = (c.prenom||'')+' '+(c.nom||'')+(c.fonction ? ' ('+c.fonction+')' : '');
-    if (selectedId === c.id) opt.selected = true;
-    ctSel.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = (c.prenom||'')+' '+(c.nom||'')+(c.fonction ? ' ('+c.fonction+')' : '');
+    if (selectedId === c.id) o.selected = true;
+    ctSel.appendChild(o);
   });
 }
 
@@ -312,7 +290,7 @@ function renderActionsList(cibleId) {
   container.innerHTML = '';
   const actions = state.actions.filter(a => a.cible_id === cibleId).sort((a,b) => a.etape - b.etape);
   if (actions.length === 0) {
-    container.innerHTML = '<p class="hint" style="margin:8px 0;">Aucune action. Cliquez sur "+ Ajouter une action" pour commencer.</p>';
+    container.innerHTML = '<p class="hint" style="margin:8px 0;">Aucune action. Cliquez sur "+ Ajouter une action".</p>';
     return;
   }
   actions.forEach(a => {
@@ -333,10 +311,7 @@ function renderActionsList(cibleId) {
     cb.addEventListener('change', async () => {
       const id = parseInt(cb.dataset.toggleAction);
       const action = state.actions.find(a => a.id === id);
-      await sb.from('actions_cible').update({
-        est_terminee: cb.checked,
-        date_realisation: cb.checked ? new Date().toISOString().split('T')[0] : null
-      }).eq('id', id);
+      await sb.from('actions_cible').update({ est_terminee: cb.checked, date_realisation: cb.checked ? new Date().toISOString().split('T')[0] : null }).eq('id', id);
       await loadData();
       renderActionsList(action.cible_id);
       renderKanban();
@@ -344,10 +319,7 @@ function renderActionsList(cibleId) {
     });
   });
   container.querySelectorAll('[data-edit-action]').forEach(div => {
-    div.addEventListener('click', () => {
-      const action = state.actions.find(a => a.id === parseInt(div.dataset.editAction));
-      openModalAction(action);
-    });
+    div.addEventListener('click', () => openModalAction(state.actions.find(a => a.id === parseInt(div.dataset.editAction))));
   });
 }
 
@@ -369,30 +341,20 @@ async function saveCible(e) {
     updated_at: new Date().toISOString()
   };
   if (data.etape === 8) data.date_signature = new Date().toISOString().split('T')[0];
-  const { error } = id
-    ? await sb.from('cibles_msi').update(data).eq('id', id)
-    : await sb.from('cibles_msi').insert([data]);
+  const { error } = id ? await sb.from('cibles_msi').update(data).eq('id', id) : await sb.from('cibles_msi').insert([data]);
   if (error) showToast('Erreur : ' + error.message, 'error');
-  else {
-    showToast(id ? 'Cible modifiée' : 'Cible créée', 'success');
-    closeM('modal-cible');
-    await loadData();
-    renderAll();
-  }
+  else { showToast(id ? 'Cible modifiée' : 'Cible créée', 'success'); closeM('modal-cible'); await loadData(); renderAll(); }
 }
 
 async function deleteCible() {
   const id = document.getElementById('cible-id').value;
   if (!id || !confirm('Supprimer cette cible MSI et toutes ses actions ?')) return;
   await sb.from('cibles_msi').delete().eq('id', id);
-  showToast('Cible supprimée', 'success');
-  closeM('modal-cible');
-  await loadData();
-  renderAll();
+  showToast('Cible supprimée', 'success'); closeM('modal-cible'); await loadData(); renderAll();
 }
 
 // ============================================================
-// ENTREPRISES
+// ENTREPRISES, CONTACTS, ACTIONS, ÉVÉNEMENTS, AFFAIRES, PÉRIODE
 // ============================================================
 function openModalEntreprise(prefill = {}) {
   document.getElementById('entreprise-form').reset();
@@ -413,29 +375,18 @@ function openModalEntreprise(prefill = {}) {
 }
 
 function renderContactsList(entrepriseId) {
-  const container = document.getElementById('contacts-list');
-  container.innerHTML = '';
-  const contacts = state.contacts.filter(c => c.entreprise_id === entrepriseId);
-  if (contacts.length === 0) {
-    container.innerHTML = '<p class="hint" style="margin:8px 0;">Aucun contact. Cliquez sur "+ Ajouter un contact".</p>';
-    return;
-  }
-  contacts.forEach(c => {
+  const c = document.getElementById('contacts-list');
+  c.innerHTML = '';
+  const list = state.contacts.filter(x => x.entreprise_id === entrepriseId);
+  if (list.length === 0) { c.innerHTML = '<p class="hint" style="margin:8px 0;">Aucun contact.</p>'; return; }
+  list.forEach(ct => {
     const div = document.createElement('div');
     div.className = 'contact-item';
-    div.innerHTML = `
-      <div class="contact-item-content" data-edit-contact="${c.id}" style="cursor:pointer;">
-        <div class="contact-item-title">${(c.prenom||'')+' '+(c.nom||'')} ${c.est_decideur ? '<span class="badge badge-info" style="margin-left:6px;">Décideur</span>' : ''}</div>
-        <div class="contact-item-meta">${c.fonction || ''} ${c.email ? '· '+c.email : ''} ${c.telephone ? '· '+c.telephone : ''}</div>
-      </div>
-    `;
-    container.appendChild(div);
+    div.innerHTML = `<div class="contact-item-content" data-edit-contact="${ct.id}" style="cursor:pointer;"><div class="contact-item-title">${(ct.prenom||'')+' '+(ct.nom||'')} ${ct.est_decideur ? '<span class="badge badge-info" style="margin-left:6px;">Décideur</span>' : ''}</div><div class="contact-item-meta">${ct.fonction || ''} ${ct.email ? '· '+ct.email : ''} ${ct.telephone ? '· '+ct.telephone : ''}</div></div>`;
+    c.appendChild(div);
   });
-  container.querySelectorAll('[data-edit-contact]').forEach(div => {
-    div.addEventListener('click', () => {
-      const c = state.contacts.find(x => x.id === parseInt(div.dataset.editContact));
-      openModalContact(c);
-    });
+  c.querySelectorAll('[data-edit-contact]').forEach(div => {
+    div.addEventListener('click', () => openModalContact(state.contacts.find(x => x.id === parseInt(div.dataset.editContact))));
   });
 }
 
@@ -451,9 +402,7 @@ async function saveEntreprise(e) {
     notes: document.getElementById('ent-notes').value || null,
     updated_at: new Date().toISOString()
   };
-  const { data: result, error } = id
-    ? await sb.from('entreprises').update(data).eq('id', id).select()
-    : await sb.from('entreprises').insert([data]).select();
+  const { data: result, error } = id ? await sb.from('entreprises').update(data).eq('id', id).select() : await sb.from('entreprises').insert([data]).select();
   if (error) showToast('Erreur : ' + error.message, 'error');
   else {
     showToast(id ? 'Entreprise modifiée' : 'Entreprise créée', 'success');
@@ -462,8 +411,7 @@ async function saveEntreprise(e) {
       document.getElementById('contacts-section').classList.remove('hidden');
       document.getElementById('btn-delete-entreprise').classList.remove('hidden');
     }
-    await loadData();
-    renderEntreprises();
+    await loadData(); renderEntreprises();
     if (id) closeM('modal-entreprise');
   }
 }
@@ -472,15 +420,9 @@ async function deleteEntreprise() {
   const id = document.getElementById('ent-id').value;
   if (!id || !confirm('Supprimer cette entreprise et tous ses contacts ?')) return;
   await sb.from('entreprises').delete().eq('id', id);
-  showToast('Entreprise supprimée', 'success');
-  closeM('modal-entreprise');
-  await loadData();
-  renderEntreprises();
+  showToast('Entreprise supprimée', 'success'); closeM('modal-entreprise'); await loadData(); renderEntreprises();
 }
 
-// ============================================================
-// CONTACTS
-// ============================================================
 function openModalContact(prefill = {}) {
   document.getElementById('contact-form').reset();
   document.getElementById('ct-id').value = prefill.id || '';
@@ -511,16 +453,9 @@ async function saveContact(e) {
     telephone: document.getElementById('ct-tel').value || null,
     est_decideur: document.getElementById('ct-decideur').checked
   };
-  const { error } = id
-    ? await sb.from('contacts_v2').update(data).eq('id', id)
-    : await sb.from('contacts_v2').insert([data]);
+  const { error } = id ? await sb.from('contacts_v2').update(data).eq('id', id) : await sb.from('contacts_v2').insert([data]);
   if (error) showToast('Erreur : ' + error.message, 'error');
-  else {
-    showToast(id ? 'Contact modifié' : 'Contact créé', 'success');
-    closeM('modal-contact');
-    await loadData();
-    renderContactsList(entId);
-  }
+  else { showToast(id ? 'Contact modifié' : 'Contact créé', 'success'); closeM('modal-contact'); await loadData(); renderContactsList(entId); }
 }
 
 async function deleteContact() {
@@ -528,40 +463,31 @@ async function deleteContact() {
   const entId = parseInt(document.getElementById('ct-entreprise-id').value);
   if (!id || !confirm('Supprimer ce contact ?')) return;
   await sb.from('contacts_v2').delete().eq('id', id);
-  showToast('Contact supprimé', 'success');
-  closeM('modal-contact');
-  await loadData();
-  renderContactsList(entId);
+  showToast('Contact supprimé', 'success'); closeM('modal-contact'); await loadData(); renderContactsList(entId);
 }
 
-// ============================================================
-// ACTIONS
-// ============================================================
 function openModalAction(prefill = {}) {
   document.getElementById('action-form').reset();
   document.getElementById('act-id').value = prefill.id || '';
   document.getElementById('act-cible-id').value = prefill.cible_id || document.getElementById('cible-id').value;
   document.getElementById('modal-action-title').textContent = prefill.id ? 'Modifier action' : 'Nouvelle action';
   document.getElementById('btn-delete-action').classList.toggle('hidden', !prefill.id);
-
   const etapeSel = document.getElementById('act-etape');
   etapeSel.innerHTML = '';
   state.etapes.forEach(et => {
-    const opt = document.createElement('option');
-    opt.value = et.numero; opt.textContent = et.numero + '. ' + et.libelle;
-    if (prefill.etape === et.numero) opt.selected = true;
-    etapeSel.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = et.numero; o.textContent = et.numero + '. ' + et.libelle;
+    if (prefill.etape === et.numero) o.selected = true;
+    etapeSel.appendChild(o);
   });
-
   const respSel = document.getElementById('act-responsable');
   respSel.innerHTML = '<option value="">—</option>';
   state.utilisateurs.forEach(u => {
-    const opt = document.createElement('option');
-    opt.value = u.id; opt.textContent = (u.prenom||'')+' '+(u.nom||'');
-    if (prefill.responsable_id === u.id) opt.selected = true;
-    respSel.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
+    if (prefill.responsable_id === u.id) o.selected = true;
+    respSel.appendChild(o);
   });
-
   if (prefill.id) {
     document.getElementById('act-intitule').value = prefill.intitule || '';
     document.getElementById('act-echeance').value = prefill.date_echeance || '';
@@ -582,17 +508,9 @@ async function saveAction(e) {
     date_echeance: document.getElementById('act-echeance').value || null,
     notes: document.getElementById('act-notes').value || null
   };
-  const { error } = id
-    ? await sb.from('actions_cible').update(data).eq('id', id)
-    : await sb.from('actions_cible').insert([data]);
+  const { error } = id ? await sb.from('actions_cible').update(data).eq('id', id) : await sb.from('actions_cible').insert([data]);
   if (error) showToast('Erreur : ' + error.message, 'error');
-  else {
-    showToast(id ? 'Action modifiée' : 'Action créée', 'success');
-    closeM('modal-action');
-    await loadData();
-    renderActionsList(cibleId);
-    renderKanban();
-  }
+  else { showToast(id ? 'Action modifiée' : 'Action créée', 'success'); closeM('modal-action'); await loadData(); renderActionsList(cibleId); renderKanban(); }
 }
 
 async function deleteAction() {
@@ -600,36 +518,31 @@ async function deleteAction() {
   const cibleId = parseInt(document.getElementById('act-cible-id').value);
   if (!id || !confirm('Supprimer cette action ?')) return;
   await sb.from('actions_cible').delete().eq('id', id);
-  showToast('Action supprimée', 'success');
-  closeM('modal-action');
-  await loadData();
-  renderActionsList(cibleId);
+  showToast('Action supprimée', 'success'); closeM('modal-action'); await loadData(); renderActionsList(cibleId);
 }
 
-// ============================================================
-// ÉVÉNEMENTS, AFFAIRES, PÉRIODES (conservés du v3)
-// ============================================================
 function openModal(prefill = {}) {
-  const form = document.getElementById('event-form');
-  form.reset();
+  document.getElementById('event-form').reset();
   document.getElementById('event-id').value = prefill.id || '';
   document.getElementById('modal-title').textContent = prefill.id ? 'Modifier événement' : 'Nouvel événement';
   document.getElementById('btn-delete').classList.toggle('hidden', !prefill.id);
   const srcSelect = document.getElementById('event-source');
   srcSelect.innerHTML = '<option value="">Choisir...</option>';
   state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s.id; opt.textContent = (s.groupe ? '['+s.groupe+'] ' : '') + s.nom;
-    if (prefill.source_id === s.id) opt.selected = true;
-    srcSelect.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = s.id;
+    const prefix = s.parent_id ? '  └ ' : '';
+    o.textContent = prefix + s.nom;
+    if (prefill.source_id === s.id) o.selected = true;
+    srcSelect.appendChild(o);
   });
   const respSelect = document.getElementById('event-responsable');
   respSelect.innerHTML = '<option value="">Choisir...</option>';
   state.utilisateurs.forEach(u => {
-    const opt = document.createElement('option');
-    opt.value = u.id; opt.textContent = (u.prenom || '') + ' ' + (u.nom || '');
-    if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) opt.selected = true;
-    respSelect.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
+    if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) o.selected = true;
+    respSelect.appendChild(o);
   });
   if (prefill.id) {
     document.getElementById('event-quoi').value = prefill.quoi || '';
@@ -678,10 +591,10 @@ function openModalAffaire(prefill = {}) {
   const respSelect = document.getElementById('affaire-responsable');
   respSelect.innerHTML = '<option value="">Choisir...</option>';
   state.utilisateurs.forEach(u => {
-    const opt = document.createElement('option');
-    opt.value = u.id; opt.textContent = (u.prenom || '') + ' ' + (u.nom || '');
-    if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) opt.selected = true;
-    respSelect.appendChild(opt);
+    const o = document.createElement('option');
+    o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
+    if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) o.selected = true;
+    respSelect.appendChild(o);
   });
   if (prefill.id) {
     document.getElementById('affaire-client').value = prefill.client || '';
@@ -740,58 +653,70 @@ async function savePeriode(e) {
   const exists = state.objectifsAnnuels.find(o => o.annee === state.obj_annee && o.periode_msi === code);
   if (exists) { showToast('Cette période existe déjà', 'error'); return; }
   await sb.from('objectifs_annuels').insert([{ annee: state.obj_annee, periode_msi: code, ca_cible: 0, msi_cible: 0, commentaire }]);
-  showToast('Période ajoutée', 'success');
-  closeM('modal-periode');
-  await loadData();
-  renderObjectifsAnnuels();
-  renderDashboard();
+  showToast('Période ajoutée', 'success'); closeM('modal-periode'); await loadData(); renderObjectifsAnnuels(); renderDashboard();
 }
 
 // ============================================================
 // RENDUS
 // ============================================================
 function renderAll() {
-  renderDashboard();
-  renderKanban();
-  renderHebdo();
-  renderEntreprises();
-  renderAffaires();
-  renderCalendar();
-  renderEventsTable();
-  renderObjectifsAnnuels();
-  renderObjectifsTable();
+  renderDashboard(); renderKanban(); renderHebdo(); renderEntreprises();
+  renderAffaires(); renderCalendar(); renderEventsTable();
+  renderObjectifsAnnuels(); renderObjectifsTable();
 }
 
+// === KANBAN avec DRAG & DROP ===
 function renderKanban() {
   const board = document.getElementById('kanban-board');
   board.innerHTML = '';
-  let ciblesFiltrees = state.cibles;
-  if (state.plan_periode) ciblesFiltrees = ciblesFiltrees.filter(c => c.periode_msi === state.plan_periode);
-  if (state.plan_responsable) ciblesFiltrees = ciblesFiltrees.filter(c => c.responsable_id === state.plan_responsable);
+  let cibles = state.cibles;
+  if (state.plan_periode) cibles = cibles.filter(c => c.periode_msi === state.plan_periode);
+  if (state.plan_responsable) cibles = cibles.filter(c => c.responsable_id === state.plan_responsable);
 
   state.etapes.forEach(etape => {
     const col = document.createElement('div');
     col.className = 'kanban-column';
-    const cibles = ciblesFiltrees.filter(c => c.etape === etape.numero);
+    col.dataset.etape = etape.numero;
+    const cs = cibles.filter(c => c.etape === etape.numero);
     col.innerHTML = `
       <div class="kanban-col-header" style="border-bottom-color:${etape.couleur};">
         <div class="kanban-col-title">${etape.numero}. ${etape.libelle}</div>
-        <div class="kanban-col-count">${cibles.length}</div>
+        <div class="kanban-col-count">${cs.length}</div>
       </div>
-      <div class="kanban-col-body" data-etape="${etape.numero}"></div>
+      <div class="kanban-col-body"></div>
     `;
     board.appendChild(col);
     const body = col.querySelector('.kanban-col-body');
-    if (cibles.length === 0) {
+
+    // Drag & drop : la colonne accepte les drops
+    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over'); });
+    col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+    col.addEventListener('drop', async e => {
+      e.preventDefault();
+      col.classList.remove('drag-over');
+      const cibleId = state.draggedCibleId;
+      if (!cibleId) return;
+      const cible = state.cibles.find(c => c.id === cibleId);
+      if (cible.etape === etape.numero) return; // pas de changement
+      const newData = { etape: etape.numero, updated_at: new Date().toISOString() };
+      if (etape.numero === 8) newData.date_signature = new Date().toISOString().split('T')[0];
+      await sb.from('cibles_msi').update(newData).eq('id', cibleId);
+      showToast(`Cible déplacée vers "${etape.libelle}"`, 'success');
+      await loadData();
+      renderAll();
+    });
+
+    if (cs.length === 0) {
       body.innerHTML = '<div class="kanban-empty">Aucune cible</div>';
     } else {
-      cibles.forEach(c => {
+      cs.forEach(c => {
         const ent = state.entreprises.find(e => e.id === c.entreprise_id);
         const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
         const nbActions = state.actions.filter(a => a.cible_id === c.id).length;
         const nbActionsOk = state.actions.filter(a => a.cible_id === c.id && a.est_terminee).length;
         const card = document.createElement('div');
         card.className = 'kanban-card';
+        card.draggable = true;
         card.style.borderLeftColor = etape.couleur;
         card.innerHTML = `
           <div class="kanban-card-title">${c.intitule}</div>
@@ -801,7 +726,20 @@ function renderKanban() {
             <span class="kanban-card-montant">${formatEuro(c.montant_estime)} €</span>
           </div>
         `;
-        card.addEventListener('click', () => openModalCible(c));
+        // Événements drag & drop sur la carte
+        card.addEventListener('dragstart', e => {
+          state.draggedCibleId = c.id;
+          card.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        card.addEventListener('dragend', () => {
+          card.classList.remove('dragging');
+          state.draggedCibleId = null;
+        });
+        // Clic = ouvrir modal
+        card.addEventListener('click', e => {
+          if (!card.classList.contains('dragging')) openModalCible(c);
+        });
         body.appendChild(card);
       });
     }
@@ -813,9 +751,8 @@ function renderEntreprises() {
   container.innerHTML = '';
   let entreprises = state.entreprises;
   if (state.ent_filter) entreprises = entreprises.filter(e => e.priorite === state.ent_filter);
-
   if (entreprises.length === 0) {
-    container.innerHTML = '<div class="empty" style="grid-column:1/-1;">Aucune entreprise. Cliquez sur "+ Nouvelle entreprise" pour commencer.</div>';
+    container.innerHTML = '<div class="empty" style="grid-column:1/-1;">Aucune entreprise.</div>';
     return;
   }
   entreprises.forEach(ent => {
@@ -851,23 +788,49 @@ function renderDashboard() {
   const caEnCours = ciblesActives.reduce((s,c) => s + ((c.montant_estime || 0) * (c.niveau_confiance || 0)), 0);
   const atteinteCA = caObjectif > 0 ? Math.round((caSigne / caObjectif) * 100) : 0;
 
-  // RDV qualifiés cette semaine
+  // === KPI PRIORITAIRES ===
   const rdvSem = state.suivi.filter(s => s.type_activite === 'RDV effectués' && s.annee === state.annee && s.semaine === state.hebdo_semaine).reduce((sum,s) => sum + (s.nombre||0), 0);
-  // Propales ce mois (estimation : 4 dernières semaines)
   const propMois = state.suivi.filter(s => s.type_activite === 'Propositions envoyées' && s.annee === state.annee && s.semaine >= state.hebdo_semaine-3 && s.semaine <= state.hebdo_semaine).reduce((sum,s) => sum + (s.nombre||0), 0);
 
+  // KPI 1 : RDV qualifiés
   document.getElementById('kpi-rdv-sem').textContent = rdvSem;
-  const elRdv = document.getElementById('kpi-rdv-sem');
-  elRdv.className = 'kpi-value' + (rdvSem >= state.kpi_rdv_cible ? ' kpi-ok' : ' kpi-alert');
-  document.getElementById('kpi-rdv-sem-obj').textContent = 'Objectif ' + state.kpi_rdv_cible;
+  document.getElementById('kpi-rdv-sem-obj').textContent = 'Objectif ' + state.kpi_rdv_cible + ' / semaine';
+  const cardRdv = document.getElementById('kpi-card-rdv');
+  const valRdv = document.getElementById('kpi-rdv-sem');
+  const statusRdv = document.getElementById('kpi-rdv-status');
+  cardRdv.className = 'kpi-card-big ' + (rdvSem >= state.kpi_rdv_cible ? 'kpi-card-ok' : 'kpi-card-alert');
+  valRdv.className = 'kpi-card-big-value ' + (rdvSem >= state.kpi_rdv_cible ? 'kpi-ok' : 'kpi-alert');
+  statusRdv.className = 'kpi-card-big-status ' + (rdvSem >= state.kpi_rdv_cible ? 'ok' : 'alert');
+  statusRdv.textContent = rdvSem >= state.kpi_rdv_cible ? 'Atteint' : 'Retard';
 
+  // KPI 2 : Propales
   document.getElementById('kpi-prop-mois').textContent = propMois;
-  const elProp = document.getElementById('kpi-prop-mois');
-  elProp.className = 'kpi-value' + (propMois >= state.kpi_prop_cible ? ' kpi-ok' : ' kpi-alert');
-  document.getElementById('kpi-prop-mois-obj').textContent = 'Objectif ' + state.kpi_prop_cible;
+  document.getElementById('kpi-prop-mois-obj').textContent = 'Objectif ' + state.kpi_prop_cible + ' / mois';
+  const cardProp = document.getElementById('kpi-card-prop');
+  const valProp = document.getElementById('kpi-prop-mois');
+  const statusProp = document.getElementById('kpi-prop-status');
+  cardProp.className = 'kpi-card-big ' + (propMois >= state.kpi_prop_cible ? 'kpi-card-ok' : 'kpi-card-alert');
+  valProp.className = 'kpi-card-big-value ' + (propMois >= state.kpi_prop_cible ? 'kpi-ok' : 'kpi-alert');
+  statusProp.className = 'kpi-card-big-status ' + (propMois >= state.kpi_prop_cible ? 'ok' : 'alert');
+  statusProp.textContent = propMois >= state.kpi_prop_cible ? 'Atteint' : 'Retard';
 
+  // KPI 3 : Contrats signés
   document.getElementById('kpi-contrats').textContent = ciblesSignees.length;
-  document.getElementById('kpi-contrats-obj').textContent = 'Objectif ' + msiObjectif;
+  document.getElementById('kpi-contrats-obj').textContent = 'Objectif ' + msiObjectif + ' MSI annuel';
+  const cardContrats = document.getElementById('kpi-card-contrats');
+  const valContrats = document.getElementById('kpi-contrats');
+  const statusContrats = document.getElementById('kpi-contrats-status');
+  const contratsOk = msiObjectif > 0 && ciblesSignees.length >= msiObjectif;
+  cardContrats.className = 'kpi-card-big ' + (contratsOk ? 'kpi-card-ok' : '');
+  valContrats.className = 'kpi-card-big-value ' + (contratsOk ? 'kpi-ok' : '');
+  if (msiObjectif > 0) {
+    statusContrats.className = 'kpi-card-big-status ' + (contratsOk ? 'ok' : 'alert');
+    statusContrats.textContent = contratsOk ? 'Atteint' : Math.round((ciblesSignees.length/msiObjectif)*100) + ' %';
+  } else {
+    statusContrats.textContent = '';
+  }
+
+  // KPI financiers
   document.getElementById('kpi-ca-signe').textContent = formatEuro(caSigne);
   document.getElementById('kpi-ca-cours').textContent = formatEuro(caEnCours);
   document.getElementById('kpi-ca-objectif').textContent = formatEuro(caObjectif);
@@ -978,7 +941,7 @@ function renderAffaires() {
   const tbody = document.querySelector('#affaires-table tbody');
   tbody.innerHTML = '';
   if (state.affaires.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">Aucune affaire (utilisez plutôt le Plan d\'action).</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">Aucune affaire.</td></tr>';
     return;
   }
   state.affaires.forEach(a => {
@@ -990,31 +953,50 @@ function renderAffaires() {
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.btn-link').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const a = state.affaires.find(x => x.id === parseInt(btn.dataset.id));
-      openModalAffaire(a);
-    });
+    btn.addEventListener('click', () => openModalAffaire(state.affaires.find(x => x.id === parseInt(btn.dataset.id))));
   });
 }
 
+// === CALENDRIER HIÉRARCHIQUE ===
 function renderCalendar() {
   const container = document.getElementById('calendar-grid');
   container.innerHTML = '';
-  let sources = state.sources;
-  if (state.cal_filter_groupe) sources = sources.filter(s => s.groupe === state.cal_filter_groupe);
-  sources = sources.filter(s => s.groupe !== 'OUTIL');
 
+  // Filtrer les sources (exclure OUTIL)
+  let sources = state.sources.filter(s => s.groupe !== 'OUTIL');
+  if (state.cal_filter_groupe) sources = sources.filter(s => s.groupe === state.cal_filter_groupe);
+
+  // Construire la liste ordonnée avec parents puis enfants
+  const orderedSources = [];
+  const parents = sources.filter(s => !s.parent_id);
+  parents.forEach(p => {
+    orderedSources.push({ ...p, isParent: true });
+    const children = sources.filter(s => s.parent_id === p.id);
+    children.forEach(c => orderedSources.push({ ...c, isChild: true }));
+  });
+  // Ajouter les sources orphelines (qui ont un parent_id pointant vers une source filtrée)
+  sources.forEach(s => {
+    if (s.parent_id && !orderedSources.find(x => x.id === s.id)) {
+      orderedSources.push({ ...s, isOrphan: true });
+    }
+  });
+
+  // En-tête
   const header = document.createElement('div');
   header.className = 'cal-row cal-header';
   header.innerHTML = '<div class="cal-cell cal-source-header">Source</div>' +
     MOIS_COURT.map((m, i) => `<div class="cal-cell cal-month-header${(i===6||i===7)?' cal-vacation':''}">${m}</div>`).join('');
   container.appendChild(header);
+
   const evAnnee = state.evenements.filter(e => new Date(e.date_evenement).getFullYear() === state.cal_annee);
 
-  sources.forEach(src => {
+  orderedSources.forEach(src => {
     const row = document.createElement('div');
     row.className = 'cal-row';
-    let html = '<div class="cal-cell cal-source-label" title="'+src.nom+'">' + src.nom.substring(0,18) + '</div>';
+    let labelClass = 'cal-source-label';
+    if (src.isParent) labelClass += ' cal-source-parent';
+    else if (src.isChild) labelClass += ' cal-source-child';
+    let html = `<div class="cal-cell ${labelClass}" title="${src.nom}">${src.nom}</div>`;
     for (let m = 0; m < 12; m++) {
       const isVac = m === 6 || m === 7;
       const evs = evAnnee.filter(e => e.source_id === src.id && new Date(e.date_evenement).getMonth() === m);
@@ -1038,7 +1020,7 @@ function renderCalendar() {
   container.querySelectorAll('.cal-filled').forEach(cell => {
     cell.addEventListener('click', () => {
       const ids = JSON.parse(cell.dataset.evs);
-      if (ids.length === 1) { openModal(state.evenements.find(e => e.id === ids[0])); }
+      if (ids.length === 1) openModal(state.evenements.find(e => e.id === ids[0]));
       else document.querySelector('.tab[data-tab="events"]').click();
     });
   });
@@ -1116,7 +1098,9 @@ function renderObjectifsTable() {
     const p1 = state.objectifs.find(o => o.source_id === src.id && o.periode === 'P1');
     const p2 = state.objectifs.find(o => o.source_id === src.id && o.periode === 'P2');
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><strong>${src.nom}</strong></td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P1" value="${p1?.cible_contacts||0}" min="0"></td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P2" value="${p2?.cible_contacts||0}" min="0"></td><td><strong>${(p1?.cible_contacts||0)+(p2?.cible_contacts||0)}</strong></td>`;
+    const nomDisplay = src.parent_id ? '└ '+src.nom : src.nom;
+    const style = src.parent_id ? 'padding-left:24px;color:#5F5E5A;' : 'font-weight:600;';
+    tr.innerHTML = `<td style="${style}">${nomDisplay}</td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P1" value="${p1?.cible_contacts||0}" min="0"></td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P2" value="${p2?.cible_contacts||0}" min="0"></td><td><strong>${(p1?.cible_contacts||0)+(p2?.cible_contacts||0)}</strong></td>`;
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.obj-input').forEach(input => {

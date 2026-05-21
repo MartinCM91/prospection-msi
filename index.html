@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Connexion — Prospection MSI</title>
+  <title>Connexion — Prospection commercial</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="auth-body">
-  <div class="auth-container">
+  <div class="auth-container" id="auth-screen">
     <div class="auth-logo">
       <img src="logo-icam.png" alt="ICAM" onerror="this.style.display='none'">
     </div>
-    <h1 class="auth-title">Prospection MSI</h1>
+    <h1 class="auth-title">Prospection commercial</h1>
     <p class="auth-subtitle">Outil de pilotage commercial ICAM</p>
 
     <div class="auth-tabs">
@@ -25,18 +25,15 @@
       <label>Mot de passe</label>
       <input type="password" id="login-password" required>
       <button type="submit" class="btn-primary">Se connecter</button>
+      <div style="text-align:center; margin-top:12px;">
+        <button type="button" id="link-forgot" class="btn-link" style="font-size:12px;">Mot de passe oublié ?</button>
+      </div>
     </form>
 
     <form id="form-signup" class="auth-form hidden">
       <div class="row">
-        <div>
-          <label>Prénom</label>
-          <input type="text" id="signup-prenom" required>
-        </div>
-        <div>
-          <label>Nom</label>
-          <input type="text" id="signup-nom" required>
-        </div>
+        <div><label>Prénom</label><input type="text" id="signup-prenom" required></div>
+        <div><label>Nom</label><input type="text" id="signup-nom" required></div>
       </div>
       <label>Email</label>
       <input type="email" id="signup-email" required>
@@ -45,7 +42,27 @@
       <button type="submit" class="btn-primary">Créer mon compte</button>
     </form>
 
+    <form id="form-forgot" class="auth-form hidden">
+      <p style="font-size:13px;color:#5F5E5A;margin-bottom:12px;">Entrez votre email pour recevoir un lien de réinitialisation.</p>
+      <label>Email</label>
+      <input type="email" id="forgot-email" required>
+      <button type="submit" class="btn-primary">Envoyer le lien</button>
+      <div style="text-align:center; margin-top:12px;">
+        <button type="button" id="link-back-login" class="btn-link" style="font-size:12px;">← Retour à la connexion</button>
+      </div>
+    </form>
+
     <div id="auth-message"></div>
+  </div>
+
+  <!-- Écran de choix de produit après login -->
+  <div class="auth-container hidden" id="produit-screen" style="max-width:560px;">
+    <div class="auth-logo">
+      <img src="logo-icam.png" alt="ICAM" onerror="this.style.display='none'">
+    </div>
+    <h1 class="auth-title">Quel produit voulez-vous piloter ?</h1>
+    <p class="auth-subtitle">Vous pourrez changer à tout moment depuis l'application.</p>
+    <div id="produits-grid" class="produits-grid"></div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -53,44 +70,73 @@
   <script>
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    sb.auth.getSession().then(({ data }) => {
-      if (data.session) window.location.href = 'app.html';
-    });
+    // Gestion du retour de Supabase après lien email de reset
+    if (window.location.hash && window.location.hash.includes('type=recovery')) {
+      const newPwd = prompt('Entrez votre nouveau mot de passe (8 caractères min) :');
+      if (newPwd && newPwd.length >= 8) {
+        sb.auth.updateUser({ password: newPwd }).then(({ error }) => {
+          if (error) alert('Erreur : ' + error.message);
+          else { alert('Mot de passe mis à jour. Vous pouvez vous connecter.'); window.location.href = 'index.html'; }
+        });
+      }
+    } else {
+      sb.auth.getSession().then(async ({ data }) => {
+        if (data.session) {
+          // Vérifier si l'utilisateur a déjà un produit choisi
+          const { data: pref } = await sb.from('preferences_utilisateur').select('*').eq('utilisateur_id', data.session.user.id).single();
+          if (pref && pref.produit_courant_id) {
+            window.location.href = 'app.html';
+          } else {
+            showProduitScreen(data.session.user.id);
+          }
+        }
+      });
+    }
 
     const tabLogin = document.getElementById('tab-login');
     const tabSignup = document.getElementById('tab-signup');
     const formLogin = document.getElementById('form-login');
     const formSignup = document.getElementById('form-signup');
+    const formForgot = document.getElementById('form-forgot');
     const message = document.getElementById('auth-message');
+
+    function showForm(form) {
+      formLogin.classList.add('hidden');
+      formSignup.classList.add('hidden');
+      formForgot.classList.add('hidden');
+      form.classList.remove('hidden');
+      message.innerHTML = '';
+    }
 
     tabLogin.addEventListener('click', () => {
       tabLogin.classList.add('tab-active');
       tabSignup.classList.remove('tab-active');
-      formLogin.classList.remove('hidden');
-      formSignup.classList.add('hidden');
-      message.innerHTML = '';
+      showForm(formLogin);
     });
-
     tabSignup.addEventListener('click', () => {
       tabSignup.classList.add('tab-active');
       tabLogin.classList.remove('tab-active');
-      formSignup.classList.remove('hidden');
-      formLogin.classList.add('hidden');
-      message.innerHTML = '';
+      showForm(formSignup);
+    });
+    document.getElementById('link-forgot').addEventListener('click', () => {
+      tabLogin.classList.remove('tab-active');
+      tabSignup.classList.remove('tab-active');
+      showForm(formForgot);
+    });
+    document.getElementById('link-back-login').addEventListener('click', () => {
+      tabLogin.classList.add('tab-active');
+      showForm(formLogin);
     });
 
     formLogin.addEventListener('submit', async (e) => {
       e.preventDefault();
       message.innerHTML = '<p class="info">Connexion en cours...</p>';
-      const { error } = await sb.auth.signInWithPassword({
+      const { data, error } = await sb.auth.signInWithPassword({
         email: document.getElementById('login-email').value,
         password: document.getElementById('login-password').value
       });
-      if (error) {
-        message.innerHTML = '<p class="error">' + error.message + '</p>';
-      } else {
-        window.location.href = 'app.html';
-      }
+      if (error) message.innerHTML = '<p class="error">' + error.message + '</p>';
+      else showProduitScreen(data.user.id);
     });
 
     formSignup.addEventListener('submit', async (e) => {
@@ -99,19 +145,46 @@
       const { error } = await sb.auth.signUp({
         email: document.getElementById('signup-email').value,
         password: document.getElementById('signup-password').value,
-        options: {
-          data: {
-            prenom: document.getElementById('signup-prenom').value,
-            nom: document.getElementById('signup-nom').value
-          }
-        }
+        options: { data: { prenom: document.getElementById('signup-prenom').value, nom: document.getElementById('signup-nom').value } }
       });
-      if (error) {
-        message.innerHTML = '<p class="error">' + error.message + '</p>';
-      } else {
-        message.innerHTML = '<p class="success">Compte créé. Vérifiez votre email pour confirmer, puis connectez-vous.</p>';
-      }
+      if (error) message.innerHTML = '<p class="error">' + error.message + '</p>';
+      else message.innerHTML = '<p class="success">Compte créé. Vérifiez votre email pour confirmer, puis connectez-vous.</p>';
     });
+
+    formForgot.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      message.innerHTML = '<p class="info">Envoi du lien...</p>';
+      const email = document.getElementById('forgot-email').value;
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/index.html' });
+      if (error) message.innerHTML = '<p class="error">' + error.message + '</p>';
+      else message.innerHTML = '<p class="success">Email envoyé. Vérifiez votre boîte (et les spams).</p>';
+    });
+
+    async function showProduitScreen(userId) {
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('produit-screen').classList.remove('hidden');
+      const { data: produits } = await sb.from('produits').select('*').eq('actif', true).order('ordre_affichage');
+      const grid = document.getElementById('produits-grid');
+      grid.innerHTML = '';
+      produits.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'produit-card';
+        card.style.borderColor = p.couleur;
+        card.innerHTML = `
+          <div class="produit-card-color" style="background:${p.couleur}"></div>
+          <div class="produit-card-content">
+            <div class="produit-card-code">${p.code}</div>
+            <div class="produit-card-nom">${p.nom}</div>
+            <div class="produit-card-desc">${p.description || ''}</div>
+          </div>
+        `;
+        card.addEventListener('click', async () => {
+          await sb.from('preferences_utilisateur').upsert({ utilisateur_id: userId, produit_courant_id: p.id, updated_at: new Date().toISOString() });
+          window.location.href = 'app.html';
+        });
+        grid.appendChild(card);
+      });
+    }
   </script>
 </body>
 </html>

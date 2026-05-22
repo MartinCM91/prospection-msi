@@ -594,9 +594,9 @@ function renderChecklistItems(sourceId) {
     const div = document.createElement('div');
     div.className = 'checklist-item';
     let detailsHTML = '';
-    if (item.delai) detailsHTML += `<span class="checklist-detail-badge checklist-detail-delai"><span class="checklist-detail-icon">⏱</span> ${item.delai}</span>`;
-    if (item.responsable_type) detailsHTML += `<span class="checklist-detail-badge checklist-detail-responsable"><span class="checklist-detail-icon">👤</span> ${item.responsable_type}</span>`;
-    if (item.outils) detailsHTML += `<span class="checklist-detail-badge checklist-detail-outils"><span class="checklist-detail-icon">🔧</span> ${item.outils}</span>`;
+    if (item.delai) detailsHTML += `<span class="checklist-detail-badge checklist-detail-delai">${item.delai}</span>`;
+    if (item.responsable_type) detailsHTML += `<span class="checklist-detail-badge checklist-detail-responsable">${item.responsable_type}</span>`;
+    if (item.outils) detailsHTML += `<span class="checklist-detail-badge checklist-detail-outils">${item.outils}</span>`;
     div.innerHTML = `
       <div class="checklist-item-number">${idx + 1}</div>
       <div class="checklist-item-content">

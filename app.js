@@ -22,6 +22,21 @@ const KPI_TYPES = [
   { code: 'offres_perdues', label: 'Offres perdues' }
 ];
 
+// Liste des sources qui ont une checklist de préparatifs
+// (les enfants des parents Salons/Réseau pro/Événements héritent de la checklist du parent)
+const SOURCES_AVEC_CHECKLIST = [
+  'Réseau pro',
+  'Alumnis',
+  'Salons',
+  'Meeting-Ingé',
+  'JPO',
+  'Webinaires',
+  'Anciens clients',
+  'Maîtres de stage',
+  'Maîtres d\'apprentissage',
+  'Événements'
+];
+
 let state = {
   user: null,
   produits: [], produitActif: null,
@@ -208,7 +223,6 @@ function setupNav() {
   document.getElementById('btn-add-from-cal').addEventListener('click', () => openModal());
   document.getElementById('btn-add-periode').addEventListener('click', () => openModalPeriode());
   document.getElementById('btn-add-cible').addEventListener('click', () => openModalCible());
-  document.getElementById('btn-add-source').addEventListener('click', () => openModalSource());
 }
 
 function setupHebdo() {
@@ -638,7 +652,7 @@ async function saveChecklistItem(e) {
   };
   const { error } = id ? await sb.from('checklist_source').update(data).eq('id', id) : await sb.from('checklist_source').insert([data]);
   if (error) showToast('Erreur : ' + error.message, 'error');
-  else { showToast(id ? 'Action modifiée' : 'Action créée', 'success'); closeM('modal-checklist-item'); await loadData(); renderChecklistItems(sourceId); renderSourcesList(); }
+  else { showToast(id ? 'Action modifiée' : 'Action créée', 'success'); closeM('modal-checklist-item'); await loadData(); renderChecklistItems(sourceId); }
 }
 
 async function deleteChecklistItem() {
@@ -692,9 +706,17 @@ async function saveSource(e) {
 
 async function deleteSource() {
   const id = document.getElementById('source-id').value;
-  if (!id || !confirm('Supprimer cette source ? Sa checklist sera aussi supprimée.')) return;
-  await sb.from('sources').delete().eq('id', id);
-  showToast('Source supprimée', 'success'); closeM('modal-source'); await loadData(); renderAll();
+  if (!id || !confirm('Supprimer cette source ? Sa checklist, ses événements et ses objectifs liés seront aussi supprimés.')) return;
+  const { error } = await sb.from('sources').delete().eq('id', id);
+  if (error) {
+    console.error('Erreur suppression source:', error);
+    showToast('Erreur : ' + error.message, 'error');
+    return;
+  }
+  showToast('Source supprimée', 'success');
+  closeM('modal-source');
+  await loadData();
+  renderAll();
 }
 
 // ============================================================
@@ -725,7 +747,6 @@ function renderAll() {
   renderHebdo();
   renderCalendar();
   renderEventsTable();
-  renderSourcesList();
   renderObjectifsAnnuels();
   renderKpi6Table();
   renderObjectifsTable();
@@ -813,35 +834,6 @@ function renderKanban() {
         body.appendChild(card);
       });
     }
-  });
-}
-
-function renderSourcesList() {
-  const container = document.getElementById('sources-list');
-  if (!container) return;
-  container.innerHTML = '';
-  const sources = state.sources.filter(s => s.groupe !== 'OUTIL').sort((a,b) => (a.parent_id ? 1 : 0) - (b.parent_id ? 1 : 0));
-  sources.forEach(src => {
-    const checklistCount = state.checklist.filter(c => c.source_id === src.id).length;
-    const evtCount = state.evenements.filter(e => e.source_id === src.id).length;
-    const div = document.createElement('div');
-    div.className = 'source-card';
-    div.innerHTML = `
-      <div class="source-card-header">
-        <div class="source-card-nom">${src.parent_id ? '└ ' : ''}${src.nom}</div>
-        <div class="source-card-groupe">${src.groupe || '—'}</div>
-      </div>
-      <div class="source-card-meta">
-        <strong>${checklistCount}</strong> action(s) checklist · <strong>${evtCount}</strong> événement(s)
-      </div>
-      <div class="source-card-actions" style="margin-top:10px;">
-        <button class="source-card-action-btn btn-checklist">📋 Checklist</button>
-        <button class="source-card-action-btn btn-edit">✏️ Modifier</button>
-      </div>
-    `;
-    div.querySelector('.btn-checklist').addEventListener('click', e => { e.stopPropagation(); openChecklistModal(src.id); });
-    div.querySelector('.btn-edit').addEventListener('click', e => { e.stopPropagation(); openModalSource(src); });
-    container.appendChild(div);
   });
 }
 
@@ -1165,13 +1157,17 @@ function renderCalendar() {
     row.className = 'cal-row';
     let labelClass = 'cal-source-label';
     let labelContent;
+    const hasChecklist = SOURCES_AVEC_CHECKLIST.includes(src.nom);
+    const checklistIcon = hasChecklist 
+      ? `<span class="cal-source-checklist" data-checklist-source="${src.id}" title="Voir la checklist de préparatifs">📋</span>`
+      : '';
     if (src.isParent) {
       labelClass += ' cal-source-parent';
       if (state.expandedParents.has(src.id)) labelClass += ' expanded';
-      labelContent = `<span style="display:flex;align-items:center;flex:1;cursor:pointer;" data-parent-toggle="${src.id}"><span class="chevron">▶</span><span class="cal-source-text">${src.nom}</span></span><span class="cal-source-checklist" data-checklist-source="${src.id}" title="Voir la checklist">📋</span>`;
+      labelContent = `<span style="display:flex;align-items:center;flex:1;cursor:pointer;" data-parent-toggle="${src.id}"><span class="chevron">▶</span><span class="cal-source-text">${src.nom}</span></span>${checklistIcon}`;
     } else {
       if (src.isChild) labelClass += ' cal-source-child';
-      labelContent = `<span class="cal-source-text">${src.nom}</span><span class="cal-source-checklist" data-checklist-source="${src.id}" title="Voir la checklist">📋</span>`;
+      labelContent = `<span class="cal-source-text">${src.nom}</span>${checklistIcon}`;
     }
     let html = `<div class="cal-cell ${labelClass}">${labelContent}</div>`;
     let sourceIds = [src.id];

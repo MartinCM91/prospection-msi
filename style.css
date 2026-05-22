@@ -233,11 +233,11 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
   border-bottom: 1px solid #E5E3DC;
 }
 .checklist-count { 
-  font-size: 12px; 
+  font-size: 13px; 
   color: #888780; 
   font-weight: 500;
 }
-.checklist-count strong { color: #1F3864; }
+.checklist-count strong { color: #1F3864; font-size: 15px; }
 
 .checklist-item { 
   background: white; 
@@ -245,8 +245,9 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
   border-radius: 8px; 
   padding: 14px 16px; 
   margin-bottom: 10px; 
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 32px 1fr 80px;
+  align-items: center;
   gap: 14px;
   cursor: pointer; 
   transition: all 0.15s;
@@ -254,31 +255,31 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .checklist-item:hover { 
   border-color: #1F3864; 
   box-shadow: 0 2px 8px rgba(31,56,100,0.08); 
-  transform: translateX(2px);
 }
 .checklist-item-number {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: #F0F4F9;
-  color: #1F3864;
+  width: 32px;
+  height: 32px;
+  background: #1F3864;
+  color: white;
   border-radius: 50%;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  flex-shrink: 0;
 }
 .checklist-item-content { 
-  flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .checklist-item-action { 
   font-size: 14px; 
   font-weight: 600; 
   color: #2C2C2A; 
-  margin-bottom: 8px;
   line-height: 1.4;
+  text-align: left;
 }
 .checklist-item-details { 
   display: flex; 
@@ -295,6 +296,7 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
+  line-height: 1.4;
 }
 .checklist-detail-delai {
   background: #FAEEDA;
@@ -309,20 +311,17 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
   background: #E1F5EE;
   color: #085041;
 }
-.checklist-detail-icon {
-  font-size: 10px;
-  opacity: 0.7;
-}
 .checklist-item-edit {
-  background: none;
+  background: white;
   border: 1px solid #D3D1C7;
-  color: #888780;
-  padding: 5px 10px;
+  color: #5F5E5A;
+  padding: 6px 12px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
-  flex-shrink: 0;
   transition: all 0.15s;
+  height: fit-content;
+  justify-self: end;
 }
 .checklist-item-edit:hover {
   background: #F0F4F9;

@@ -572,7 +572,7 @@ function openChecklistModal(sourceId) {
   const src = state.sources.find(s => s.id === sourceId);
   if (!src) return;
   document.getElementById('modal-checklist-title').textContent = 'Checklist : ' + src.nom;
-  document.getElementById('checklist-info').innerHTML = `<strong>${src.nom}</strong> · ${src.categorie || 'Source'} · Cette checklist est partagée entre tous les utilisateurs et événements de cette source.`;
+  document.getElementById('checklist-info').innerHTML = `<strong>${src.nom}</strong><span class="checklist-info-sep">·</span>${src.categorie || 'Source'}<br>Cette checklist est partagée entre tous les utilisateurs et événements de cette source.`;
   renderChecklistItems(sourceId);
   document.getElementById('modal-checklist').classList.remove('hidden');
 }
@@ -581,23 +581,29 @@ function renderChecklistItems(sourceId) {
   const container = document.getElementById('checklist-items');
   container.innerHTML = '';
   const items = state.checklist.filter(c => c.source_id === sourceId);
+
+  // Mettre à jour le compteur dans la toolbar
+  const countEl = document.getElementById('checklist-count');
+  if (countEl) countEl.innerHTML = `<strong>${items.length}</strong> action${items.length > 1 ? 's' : ''}`;
+
   if (items.length === 0) {
     container.innerHTML = '<p class="empty">Aucune action dans la checklist. Cliquez sur "+ Ajouter une action" pour commencer.</p>';
     return;
   }
-  items.forEach(item => {
+  items.forEach((item, idx) => {
     const div = document.createElement('div');
     div.className = 'checklist-item';
     let detailsHTML = '';
-    if (item.delai) detailsHTML += `<span class="checklist-item-delai">${item.delai}</span>`;
-    if (item.responsable_type) detailsHTML += `<span><strong>Qui :</strong> ${item.responsable_type}</span>`;
-    if (item.outils) detailsHTML += `<span><strong>Outils :</strong> ${item.outils}</span>`;
+    if (item.delai) detailsHTML += `<span class="checklist-detail-badge checklist-detail-delai"><span class="checklist-detail-icon">⏱</span> ${item.delai}</span>`;
+    if (item.responsable_type) detailsHTML += `<span class="checklist-detail-badge checklist-detail-responsable"><span class="checklist-detail-icon">👤</span> ${item.responsable_type}</span>`;
+    if (item.outils) detailsHTML += `<span class="checklist-detail-badge checklist-detail-outils"><span class="checklist-detail-icon">🔧</span> ${item.outils}</span>`;
     div.innerHTML = `
+      <div class="checklist-item-number">${idx + 1}</div>
       <div class="checklist-item-content">
         <div class="checklist-item-action">${item.action}</div>
-        <div class="checklist-item-details">${detailsHTML}</div>
+        ${detailsHTML ? `<div class="checklist-item-details">${detailsHTML}</div>` : ''}
       </div>
-      <button class="btn-secondary" style="font-size:12px;padding:6px 10px;">Modifier</button>
+      <button class="checklist-item-edit" type="button">Modifier</button>
     `;
     div.addEventListener('click', () => openModalChecklistItem(item));
     container.appendChild(div);

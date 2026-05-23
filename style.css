@@ -30,7 +30,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .auth-form .btn-primary { width: 100%; margin-top: 20px; padding: 12px; }
 .btn-secondary { background: white; color: #5F5E5A; border: 1px solid #D3D1C7; padding: 8px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; }
 .btn-secondary:hover { background: #F5F5F2; }
-.btn-danger { background: white; color: #A32D2D; border: 1px solid #F09595; padding: 10px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; }
+.btn-danger { background: white; color: #A32D2D; border: 1px solid #F09595; padding: 8px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; }
 .btn-danger:hover { background: #FCEBEB; }
 .btn-link { background: none; border: none; color: #1F3864; cursor: pointer; font-size: 13px; text-decoration: underline; padding: 0; }
 .btn-icon { background: none; border: none; color: #A32D2D; cursor: pointer; font-size: 16px; padding: 4px 8px; }
@@ -45,7 +45,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .header-logo { height: 48px; width: auto; flex-shrink: 0; }
 .header-text h1 { font-size: 20px; font-weight: 600; color: #1F3864; }
 .header-sub { font-size: 12px; color: #888780; margin-top: 2px; }
-.header-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 #user-info { font-size: 13px; color: #5F5E5A; }
 .produit-switcher { display: flex; align-items: center; gap: 8px; padding: 4px 12px; background: #F0F4F9; border-radius: 20px; border: 1px solid #D6E1F0; }
 .produit-switcher label { font-size: 11px; color: #5F5E5A; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
@@ -56,7 +56,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .tab:hover { color: #1F3864; }
 .tab.tab-active { color: #1F3864; border-bottom-color: #1F3864; }
 .tab.tab-aide { margin-left: auto; color: #856404; }
-.tab.tab-aide:hover { color: #5F4500; }
 
 main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .view { display: none; }
@@ -86,8 +85,8 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .kpi-label { font-size: 12px; color: #888780; margin-bottom: 4px; }
 .kpi-value { font-size: 26px; font-weight: 600; color: #1F3864; }
 .kpi-objectif { font-size: 11px; color: #888780; margin-top: 2px; }
-.kpi-value.kpi-alert { color: #A32D2D; }
-.kpi-value.kpi-ok { color: #1D9E75; }
+.kpi-percent { font-size: 12px; font-weight: 600; color: #1D9E75; margin-top: 4px; }
+.kpi-percent.alert { color: #A32D2D; }
 
 .kpi-highlight { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
 .kpi-card-big { background: white; border: 2px solid #E5E3DC; border-radius: 10px; padding: 20px; position: relative; overflow: hidden; }
@@ -114,6 +113,8 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .data-table td { padding: 10px 12px; border-bottom: 1px solid #F5F5F2; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table .obj-input, .data-table .obj-annuel-input, .data-table .kpi-input { padding: 6px 8px; border: 1px solid #D3D1C7; border-radius: 4px; font-size: 13px; width: 100%; max-width: 140px; }
+.data-table tr.retard td { background: #FCEBEB; }
+.data-table tr.retard-soft td { background: #FFF8E6; }
 .empty { text-align: center; color: #888780; padding: 32px; font-style: italic; }
 
 .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; white-space: nowrap; }
@@ -122,6 +123,10 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .badge-danger { background: #FCEBEB; color: #791F1F; }
 .badge-info { background: #E6F1FB; color: #0C447C; }
 
+/* CALENDRIER */
+#calendar-container { position: relative; }
+#calendar-container.fullscreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; background: white; padding: 20px; overflow: auto; }
+#calendar-container.fullscreen .calendar-grid { max-width: 100%; }
 .calendar-grid { background: white; border-radius: 8px; border: 1px solid #E5E3DC; padding: 16px; overflow-x: auto; }
 .cal-row { display: grid; grid-template-columns: 240px repeat(12, 1fr); gap: 2px; min-width: 920px; }
 .cal-header { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid #E5E3DC; }
@@ -141,7 +146,16 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .cal-empty:hover { background: #EEEDFE; border-color: #7F77DD; }
 .cal-filled { background: #7F77DD; color: white; cursor: pointer; font-weight: 500; }
 .cal-filled:hover { background: #534AB7; }
-.cal-vacation { background: repeating-linear-gradient(45deg, transparent, transparent 3px, #FAC775 3px, #FAC775 5px); color: #633806; font-size: 9px; font-weight: 600; }
+
+/* JALONS MSI (sous calendrier principal) */
+.jalons-grid { background: white; border-radius: 8px; border: 1px solid #E5E3DC; padding: 16px; overflow-x: auto; }
+.jalon-card { background: white; border-left: 4px solid; border: 1px solid #E5E3DC; border-radius: 6px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s; display: grid; grid-template-columns: 100px 1fr 100px auto; gap: 12px; align-items: center; }
+.jalon-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.jalon-card-date { font-size: 12px; font-weight: 600; color: #1F3864; }
+.jalon-card-content { display: flex; flex-direction: column; gap: 4px; }
+.jalon-card-titre { font-weight: 600; color: #2C2C2A; font-size: 14px; }
+.jalon-card-desc { font-size: 12px; color: #5F5E5A; }
+.jalon-card-type { font-size: 11px; padding: 2px 8px; background: #F0F4F9; color: #1F3864; border-radius: 8px; font-weight: 500; white-space: nowrap; text-align: center; }
 
 .objectif-parent-row { cursor: pointer; background: #F0F4F9; user-select: none; }
 .objectif-parent-row:hover { background: #E6F1FB; }
@@ -151,8 +165,9 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .objectif-child-row td:first-child { padding-left: 36px !important; color: #5F5E5A; font-size: 12px; }
 .objectif-child-row td:first-child::before { content: '└ '; color: #B4B2A9; margin-right: 2px; }
 
+/* KANBAN v8 (5 colonnes avec case terminée) */
 .kanban-board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 16px; min-height: 500px; }
-.kanban-v7 .kanban-column { flex: 1 1 200px; min-width: 200px; }
+.kanban-v8 .kanban-column { flex: 1 1 200px; min-width: 200px; }
 .kanban-column { background: white; border-radius: 8px; border: 1px solid #E5E3DC; padding: 12px; display: flex; flex-direction: column; max-height: 75vh; transition: background 0.15s; }
 .kanban-column.drag-over { background: #EEEDFE; border-color: #7F77DD; box-shadow: 0 0 0 2px rgba(127, 119, 221, 0.2); }
 .kanban-column.col-avancement { background: #FAFAF7; }
@@ -162,19 +177,34 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .kanban-col-subtitle { font-size: 10px; color: #888780; font-style: italic; }
 .kanban-col-count { background: #F1EFE8; color: #5F5E5A; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
 .kanban-col-body { flex: 1; overflow-y: auto; min-height: 100px; display: flex; flex-direction: column; gap: 8px; }
-.kanban-card { background: white; border: 1px solid #E5E3DC; border-left: 3px solid; border-radius: 6px; padding: 10px 12px; cursor: grab; transition: all 0.15s; user-select: none; }
+.kanban-card { background: white; border: 1px solid #E5E3DC; border-left: 3px solid; border-radius: 6px; padding: 10px 12px; cursor: grab; transition: all 0.15s; user-select: none; position: relative; }
 .kanban-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); transform: translateY(-1px); }
 .kanban-card:active { cursor: grabbing; }
 .kanban-card.dragging { opacity: 0.4; cursor: grabbing; }
-.kanban-card-title { font-size: 13px; font-weight: 600; color: #2C2C2A; margin-bottom: 4px; line-height: 1.3; }
+.kanban-card.tache-terminee { opacity: 0.5; background: #F5F5F2; }
+.kanban-card.tache-terminee .kanban-card-title { text-decoration: line-through; }
+.kanban-card.tache-retard { border-left-color: #A32D2D !important; background: #FCEBEB; }
+.kanban-card.tache-retard-soft { background: #FFF8E6; }
+.kanban-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
+.kanban-card-check { cursor: pointer; flex-shrink: 0; }
+.kanban-card-title { font-size: 13px; font-weight: 600; color: #2C2C2A; line-height: 1.3; flex: 1; }
 .kanban-card-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #888780; margin-top: 6px; }
 .kanban-card-resultat { font-size: 11px; color: #5F5E5A; margin-bottom: 4px; }
 .kanban-card-resultat strong { color: #1F3864; }
 .kanban-card-echeance { font-size: 11px; color: #BA7517; font-weight: 500; }
-.kanban-card-echeance.overdue { color: #A32D2D; }
+.kanban-card-echeance.overdue { color: #A32D2D; font-weight: 600; }
+.kanban-card-echeance.missing { color: #A32D2D; font-style: italic; }
 .kanban-card-statut { font-size: 10px; padding: 2px 6px; border-radius: 8px; background: #F0F4F9; color: #1F3864; font-weight: 500; }
 .kanban-card-montant { font-weight: 600; color: #1F3864; font-size: 11px; }
 .kanban-empty { text-align: center; color: #B4B2A9; font-size: 12px; padding: 16px; font-style: italic; }
+.kanban-card-nb { display: inline-flex; gap: 6px; font-size: 10px; color: #5F5E5A; margin-top: 4px; }
+.kanban-card-nb span { background: #F0F4F9; padding: 1px 6px; border-radius: 8px; }
+
+/* RÉSULTATS ATTENDUS LIST */
+.resultats-list { display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px; }
+.resultat-tag { background: #E6F1FB; color: #0C447C; padding: 4px 10px 4px 12px; border-radius: 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+.resultat-tag-delete { cursor: pointer; opacity: 0.6; font-size: 14px; line-height: 1; }
+.resultat-tag-delete:hover { opacity: 1; color: #A32D2D; }
 
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
 .modal-content { background: white; border-radius: 12px; max-width: 640px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 24px 28px; }
@@ -182,7 +212,7 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .modal-content.modal-large { max-width: 820px; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #E5E3DC; }
 .modal-header h3 { font-size: 18px; font-weight: 600; color: #1F3864; margin: 0; }
-#modal-close, #modal-affaire-close, #modal-periode-close, #modal-cible-close, #modal-checklist-close, #modal-cl-item-close, #modal-obj-evt-close, #modal-source-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888780; padding: 4px 8px; }
+.modal-header button { background: none; border: none; font-size: 20px; cursor: pointer; color: #888780; padding: 4px 8px; }
 
 .clean-form { display: flex; flex-direction: column; gap: 16px; }
 .form-section { background: #FAFAF7; border: 1px solid #E5E3DC; border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
@@ -197,139 +227,26 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .form-field textarea { resize: vertical; min-height: 60px; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; padding-top: 16px; border-top: 1px solid #E5E3DC; }
 
-/* === SOURCES LIST === */
-.sources-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
-.source-card { background: white; border: 1px solid #E5E3DC; border-radius: 8px; padding: 16px; cursor: pointer; transition: all 0.15s; }
-.source-card:hover { border-color: #1F3864; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.source-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-.source-card-nom { font-size: 15px; font-weight: 600; color: #1F3864; }
-.source-card-groupe { font-size: 10px; padding: 2px 8px; background: #F0F4F9; color: #1F3864; border-radius: 8px; font-weight: 500; }
-.source-card-meta { font-size: 12px; color: #888780; margin-top: 8px; padding-top: 8px; border-top: 1px solid #F5F5F2; }
-.source-card-meta strong { color: #1F3864; }
-.source-card-actions { display: flex; gap: 4px; }
-.source-card-action-btn { background: #F0F4F9; border: none; border-radius: 4px; padding: 4px 8px; font-size: 13px; cursor: pointer; color: #1F3864; }
-.source-card-action-btn:hover { background: #D6E1F0; }
-
-/* === CHECKLIST === */
-.checklist-info { 
-  padding: 14px 18px; 
-  background: linear-gradient(to right, #F0F4F9 0%, #FAFAF7 100%); 
-  border-left: 4px solid #1F3864;
-  border-radius: 6px; 
-  margin-bottom: 16px; 
-  font-size: 13px; 
-  color: #5F5E5A;
-  line-height: 1.6;
-}
+/* CHECKLIST */
+.checklist-info { padding: 14px 18px; background: linear-gradient(to right, #F0F4F9 0%, #FAFAF7 100%); border-left: 4px solid #1F3864; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #5F5E5A; line-height: 1.6; }
 .checklist-info strong { color: #1F3864; font-size: 15px; }
 .checklist-info-sep { color: #B4B2A9; margin: 0 8px; }
-
-.checklist-toolbar { 
-  display: flex; 
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px; 
-  padding-bottom: 12px;
-  border-bottom: 1px solid #E5E3DC;
-}
-.checklist-count { 
-  font-size: 13px; 
-  color: #888780; 
-  font-weight: 500;
-}
+.checklist-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #E5E3DC; }
+.checklist-count { font-size: 13px; color: #888780; font-weight: 500; }
 .checklist-count strong { color: #1F3864; font-size: 15px; }
+.checklist-item { background: white; border: 1px solid #E5E3DC; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; display: grid; grid-template-columns: 32px 1fr 80px; align-items: center; gap: 14px; cursor: pointer; transition: all 0.15s; }
+.checklist-item:hover { border-color: #1F3864; box-shadow: 0 2px 8px rgba(31,56,100,0.08); }
+.checklist-item-number { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: #1F3864; color: white; border-radius: 50%; font-size: 13px; font-weight: 600; }
+.checklist-item-content { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.checklist-item-action { font-size: 14px; font-weight: 600; color: #2C2C2A; line-height: 1.4; }
+.checklist-item-details { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.checklist-detail-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; white-space: nowrap; line-height: 1.4; }
+.checklist-detail-delai { background: #FAEEDA; color: #633806; font-weight: 600; }
+.checklist-detail-responsable { background: #E6F1FB; color: #0C447C; }
+.checklist-detail-outils { background: #E1F5EE; color: #085041; }
+.checklist-item-edit { background: white; border: 1px solid #D3D1C7; color: #5F5E5A; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; transition: all 0.15s; height: fit-content; justify-self: end; }
+.checklist-item-edit:hover { background: #F0F4F9; color: #1F3864; border-color: #1F3864; }
 
-.checklist-item { 
-  background: white; 
-  border: 1px solid #E5E3DC; 
-  border-radius: 8px; 
-  padding: 14px 16px; 
-  margin-bottom: 10px; 
-  display: grid;
-  grid-template-columns: 32px 1fr 80px;
-  align-items: center;
-  gap: 14px;
-  cursor: pointer; 
-  transition: all 0.15s;
-}
-.checklist-item:hover { 
-  border-color: #1F3864; 
-  box-shadow: 0 2px 8px rgba(31,56,100,0.08); 
-}
-.checklist-item-number {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: #1F3864;
-  color: white;
-  border-radius: 50%;
-  font-size: 13px;
-  font-weight: 600;
-}
-.checklist-item-content { 
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.checklist-item-action { 
-  font-size: 14px; 
-  font-weight: 600; 
-  color: #2C2C2A; 
-  line-height: 1.4;
-  text-align: left;
-}
-.checklist-item-details { 
-  display: flex; 
-  gap: 6px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.checklist-detail-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-  line-height: 1.4;
-}
-.checklist-detail-delai {
-  background: #FAEEDA;
-  color: #633806;
-  font-weight: 600;
-}
-.checklist-detail-responsable {
-  background: #E6F1FB;
-  color: #0C447C;
-}
-.checklist-detail-outils {
-  background: #E1F5EE;
-  color: #085041;
-}
-.checklist-item-edit {
-  background: white;
-  border: 1px solid #D3D1C7;
-  color: #5F5E5A;
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-  height: fit-content;
-  justify-self: end;
-}
-.checklist-item-edit:hover {
-  background: #F0F4F9;
-  color: #1F3864;
-  border-color: #1F3864;
-}
-
-/* === ÉVÉNEMENT OBJECTIFS LIST === */
 .event-objectif-item { background: white; border: 1px solid #E5E3DC; border-radius: 6px; padding: 10px 14px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; }
 .event-objectif-item:hover { border-color: #1F3864; }
 .event-objectif-item-content { flex: 1; }

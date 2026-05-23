@@ -5,36 +5,27 @@ const MOIS_COURT = ['Janv','Févr','Mars','Avr','Mai','Juin','Juil','Août','Sep
 const ACTIVITES = ['Appels / Contacts','RDV effectués','Propositions envoyées'];
 const COULEURS_CHART = ['#1F3864','#5DCAA5','#7F77DD','#F0997B','#FAC775','#ED93B1','#B4B2A9','#85B7EB'];
 
-const COLONNES_V7 = [
-  { numero: 1, libelle: 'Recherche de leads', sublabel: 'Domaine 1', couleur: '#7F77DD', type: 'domaine' },
-  { numero: 2, libelle: 'Phoning', sublabel: 'Domaine 2', couleur: '#5DCAA5', type: 'domaine' },
-  { numero: 3, libelle: 'Expression de besoin', sublabel: 'Domaine 3', couleur: '#85B7EB', type: 'domaine' },
-  { numero: 4, libelle: 'Suivi des propales', sublabel: 'Propositions', couleur: '#FAC775', type: 'propales' },
-  { numero: 5, libelle: 'Avancement', sublabel: 'Com / Financ / Signé', couleur: '#1D9E75', type: 'avancement' }
+// 5 colonnes v8
+const COLONNES_V8 = [
+  { numero: 1, libelle: 'Leads',                       sublabel: 'Recherche',                couleur: '#7F77DD', type: 'domaine' },
+  { numero: 2, libelle: 'Phoning',                     sublabel: 'Appels',                   couleur: '#5DCAA5', type: 'domaine' },
+  { numero: 3, libelle: 'RDV Qualification du besoin', sublabel: 'RDV / Smart Diag',         couleur: '#85B7EB', type: 'domaine' },
+  { numero: 4, libelle: 'Rédaction de l\'offre',       sublabel: 'Propale en rédaction',     couleur: '#FAC775', type: 'redaction' },
+  { numero: 5, libelle: 'Avancement',                  sublabel: 'Négociation / Signé / Perdu', couleur: '#1D9E75', type: 'avancement' }
 ];
 
 const KPI_TYPES = [
-  { code: 'contacts', label: 'Nombre de contacts' },
-  { code: 'rdv_qualifies', label: 'RDV qualifiés' },
-  { code: 'propales_redigees', label: 'Propales rédigées' },
-  { code: 'en_cours', label: 'En cours (entre 3 et 4)' },
-  { code: 'offres_signees', label: 'Offres signées' },
-  { code: 'offres_perdues', label: 'Offres perdues' }
+  { code: 'contacts',          label: 'Nombre de contacts' },
+  { code: 'rdv_qualifies',     label: 'RDV qualifiés' },
+  { code: 'propales_redigees', label: 'Offres rédigées' },
+  { code: 'en_cours',          label: 'En négociation' },
+  { code: 'offres_signees',    label: 'Offres signées' },
+  { code: 'offres_perdues',    label: 'Offres perdues' }
 ];
 
-// Liste des sources qui ont une checklist de préparatifs
-// (les enfants des parents Salons/Réseau pro/Événements héritent de la checklist du parent)
 const SOURCES_AVEC_CHECKLIST = [
-  'Réseau pro',
-  'Alumnis',
-  'Salons',
-  'Meeting-Ingé',
-  'JPO',
-  'Webinaires',
-  'Anciens clients',
-  'Maîtres de stage',
-  'Maîtres d\'apprentissage',
-  'Événements'
+  'Réseau pro','Alumnis','Salons','Meeting-Ingé','JPO','Webinaires',
+  'Anciens clients','Maîtres de stage','Maîtres d\'apprentissage','Événements'
 ];
 
 let state = {
@@ -43,25 +34,33 @@ let state = {
   sources: [], utilisateurs: [], objectifs: [], evenements: [], suivi: [],
   objectifsAnnuels: [], cibles: [], domaines: [], resultatsAttendus: [],
   checklist: [], evtObjectifs: [], kpiObjectifs: [],
+  jalons: [], cibleResultats: [],
   annee: new Date().getFullYear(),
   hebdo_annee: new Date().getFullYear(),
   hebdo_semaine: getCurrentWeek(),
   cal_annee: new Date().getFullYear(),
   obj_annee: new Date().getFullYear(),
-  plan_periode: '', plan_responsable: '',
+  plan_periode: '', plan_responsable: '', plan_show_done: false,
   cal_filter_groupe: '',
   kpi_rdv_cible: 4, kpi_prop_cible: 8,
   draggedCibleId: null,
   expandedParents: new Set(),
   charts: {},
   currentChecklistSourceId: null,
-  currentEvtObjectifsEvtId: null
+  tempResultats: []
 };
 
 function getCurrentWeek() {
   const d = new Date();
   const onejan = new Date(d.getFullYear(), 0, 1);
   return Math.ceil((((d - onejan) / 86400000) + onejan.getDay() + 1) / 7);
+}
+
+function dateToWeek(d) {
+  if (!d) return null;
+  const date = new Date(d);
+  const onejan = new Date(date.getFullYear(), 0, 1);
+  return Math.ceil((((date - onejan) / 86400000) + onejan.getDay() + 1) / 7);
 }
 
 async function init() {
@@ -83,6 +82,9 @@ async function init() {
   setupYearSelectors();
   setupFilters();
   setupKpiCibles();
+  setupResets();
+  setupExport();
+  setupFullscreen();
   renderAll();
 }
 
@@ -100,7 +102,9 @@ async function loadData() {
     sb.from('resultats_attendus').select('*').order('ordre_affichage'),
     sb.from('checklist_source').select('*').order('ordre_affichage'),
     sb.from('evenement_objectifs').select('*').order('ordre_affichage'),
-    sb.from('kpi_objectifs').select('*')
+    sb.from('kpi_objectifs').select('*'),
+    sb.from('jalons_msi').select('*').order('date_debut'),
+    sb.from('cible_resultats_attendus').select('*')
   ]);
   state.produits = results[0].data || [];
   state.sources = results[1].data || [];
@@ -115,6 +119,8 @@ async function loadData() {
   state.checklist = results[10].data || [];
   state.evtObjectifs = results[11].data || [];
   state.kpiObjectifs = results[12].data || [];
+  state.jalons = results[13].data || [];
+  state.cibleResultats = results[14].data || [];
 }
 
 function formatEuro(n) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n || 0); }
@@ -131,7 +137,8 @@ function fillYearSelect(el, current, range = 3) {
 }
 
 function getColonneCible(cible) {
-  if (cible.statut_avancement && ['Communication','Financement','Paiement','CRM','Signé','Perdu'].includes(cible.statut_avancement) && cible.etape >= 5) return 5;
+  // statut_avancement défini = colonne 5
+  if (cible.statut_avancement && ['Négociation','Signé','Perdu','Communication','Financement','Paiement','CRM'].includes(cible.statut_avancement) && cible.etape >= 5) return 5;
   if (cible.etape === 4) return 4;
   if (cible.domaine_id) {
     const dom = state.domaines.find(d => d.id === cible.domaine_id);
@@ -139,6 +146,16 @@ function getColonneCible(cible) {
   }
   if (cible.etape <= 3) return cible.etape;
   return 5;
+}
+
+function isTacheEnRetard(cible) {
+  if (cible.est_terminee) return false;
+  if (!cible.date_echeance) return false;
+  return new Date(cible.date_echeance) < new Date();
+}
+
+function isTacheSansEcheance(cible) {
+  return !cible.est_terminee && !cible.date_echeance;
 }
 
 function setupProduitSwitcher() {
@@ -170,7 +187,7 @@ function setupYearSelectors() {
   fillYearSelect(document.getElementById('dash-year'), state.annee);
   document.getElementById('dash-year').addEventListener('change', e => { state.annee = parseInt(e.target.value); renderDashboard(); });
   fillYearSelect(document.getElementById('year-select'), state.cal_annee);
-  document.getElementById('year-select').addEventListener('change', e => { state.cal_annee = parseInt(e.target.value); renderCalendar(); });
+  document.getElementById('year-select').addEventListener('change', e => { state.cal_annee = parseInt(e.target.value); renderCalendar(); renderJalons(); });
   fillYearSelect(document.getElementById('obj-year'), state.obj_annee);
   document.getElementById('obj-year').addEventListener('change', e => { state.obj_annee = parseInt(e.target.value); renderObjectifsAnnuels(); });
 }
@@ -185,6 +202,7 @@ function setupFilters() {
     planResp.appendChild(o);
   });
   planResp.addEventListener('change', e => { state.plan_responsable = e.target.value; renderKanban(); });
+  document.getElementById('plan-show-done').addEventListener('change', e => { state.plan_show_done = e.target.checked; renderKanban(); });
   document.getElementById('cal-filter-groupe').addEventListener('change', e => { state.cal_filter_groupe = e.target.value; renderCalendar(); });
 }
 
@@ -203,7 +221,48 @@ function setupKpiCibles() {
     state.kpi_prop_cible = parseInt(e.target.value) || 8;
     localStorage.setItem('kpi_prop_cible', state.kpi_prop_cible);
     renderDashboard();
-    showToast('Objectif propales mis à jour', 'success');
+    showToast('Objectif offres mis à jour', 'success');
+  });
+}
+
+function setupResets() {
+  document.getElementById('btn-reset-periodes').addEventListener('click', async () => {
+    if (!confirm('Remettre à 0 toutes les valeurs cibles (CA et nombre) des périodes ? Les données réalisées sont conservées.')) return;
+    const periodes = state.objectifsAnnuels.filter(o => o.annee === state.obj_annee);
+    for (const p of periodes) {
+      await sb.from('objectifs_annuels').update({ ca_cible: 0, msi_cible: 0, updated_at: new Date().toISOString() }).eq('id', p.id);
+    }
+    await loadData(); renderObjectifsAnnuels(); renderDashboard();
+    showToast('Périodes remises à 0', 'success');
+  });
+  document.getElementById('btn-reset-kpi').addEventListener('click', async () => {
+    if (!confirm('Remettre à 0 toutes les valeurs cibles des 6 KPI pour ' + state.produitActif?.code + ' ?')) return;
+    const kpis = state.kpiObjectifs.filter(k => k.produit_id === state.produitActif?.id);
+    for (const k of kpis) {
+      await sb.from('kpi_objectifs').update({ valeur_cible: 0, updated_at: new Date().toISOString() }).eq('id', k.id);
+    }
+    await loadData(); renderKpi6Table(); renderDashboard();
+    showToast('KPI remis à 0', 'success');
+  });
+  document.getElementById('btn-reset-objectifs-sources').addEventListener('click', async () => {
+    if (!confirm('Remettre à 0 tous les objectifs de contacts par source ?')) return;
+    for (const o of state.objectifs) {
+      await sb.from('objectifs').update({ cible_contacts: 0 }).eq('id', o.id);
+    }
+    await loadData(); renderObjectifsTable();
+    showToast('Objectifs sources remis à 0', 'success');
+  });
+}
+
+function setupExport() {
+  document.getElementById('btn-export-excel').addEventListener('click', exportToExcel);
+}
+
+function setupFullscreen() {
+  document.getElementById('btn-fullscreen-cal').addEventListener('click', () => {
+    const c = document.getElementById('calendar-container');
+    c.classList.toggle('fullscreen');
+    document.getElementById('btn-fullscreen-cal').textContent = c.classList.contains('fullscreen') ? '⛶ Quitter' : '⛶ Plein écran';
   });
 }
 
@@ -221,6 +280,8 @@ function setupNav() {
   document.getElementById('btn-logout').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
   document.getElementById('btn-add-event').addEventListener('click', () => openModal());
   document.getElementById('btn-add-from-cal').addEventListener('click', () => openModal());
+  document.getElementById('btn-add-source-cal').addEventListener('click', () => openModalSource());
+  document.getElementById('btn-add-jalon').addEventListener('click', () => openModalJalon());
   document.getElementById('btn-add-periode').addEventListener('click', () => openModalPeriode());
   document.getElementById('btn-add-cible').addEventListener('click', () => openModalCible());
 }
@@ -262,7 +323,24 @@ function setupAllModals() {
   document.getElementById('modal-cible').addEventListener('click', e => { if (e.target.id === 'modal-cible') closeM('modal-cible'); });
   document.getElementById('cible-form').addEventListener('submit', saveCible);
   document.getElementById('btn-delete-cible').addEventListener('click', deleteCible);
-  document.getElementById('cible-domaine').addEventListener('change', e => updateResultatsSelect(parseInt(e.target.value)));
+
+  // Résultats attendus multiples
+  document.getElementById('cible-resultat-select').addEventListener('change', e => {
+    if (e.target.value) {
+      addResultatTag(e.target.value);
+      e.target.value = '';
+    }
+  });
+  document.getElementById('cible-resultat-libre').addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const v = e.target.value.trim();
+      if (v) { addResultatTag(v); e.target.value = ''; }
+    }
+  });
+  document.getElementById('cible-echeance').addEventListener('change', e => {
+    document.getElementById('cible-echeance-alert').style.display = e.target.value ? 'none' : 'inline';
+  });
 
   document.getElementById('modal-checklist-close').addEventListener('click', () => closeM('modal-checklist'));
   document.getElementById('modal-checklist').addEventListener('click', e => { if (e.target.id === 'modal-checklist') closeM('modal-checklist'); });
@@ -281,7 +359,11 @@ function setupAllModals() {
   document.getElementById('modal-source-close').addEventListener('click', () => closeM('modal-source'));
   document.getElementById('modal-source').addEventListener('click', e => { if (e.target.id === 'modal-source') closeM('modal-source'); });
   document.getElementById('source-form').addEventListener('submit', saveSource);
-  document.getElementById('btn-delete-source').addEventListener('click', deleteSource);
+
+  document.getElementById('modal-jalon-close').addEventListener('click', () => closeM('modal-jalon'));
+  document.getElementById('modal-jalon').addEventListener('click', e => { if (e.target.id === 'modal-jalon') closeM('modal-jalon'); });
+  document.getElementById('jalon-form').addEventListener('submit', saveJalon);
+  document.getElementById('btn-delete-jalon').addEventListener('click', deleteJalon);
 }
 
 function closeM(id) { document.getElementById(id).classList.add('hidden'); }
@@ -297,9 +379,8 @@ function toggleParent(parentId) {
   renderCalendar();
   renderObjectifsTable();
 }
-
 // ============================================================
-// CIBLES
+// MODALE TÂCHE v8 (avec case terminée + résultats multiples + 2 champs nombre)
 // ============================================================
 function openModalCible(prefill = {}) {
   document.getElementById('cible-form').reset();
@@ -308,10 +389,11 @@ function openModalCible(prefill = {}) {
   document.getElementById('btn-delete-cible').classList.toggle('hidden', !prefill.id);
 
   const domSel = document.getElementById('cible-domaine');
-  domSel.innerHTML = '<option value="">— Choisir —</option>';
+  domSel.innerHTML = '';
   state.domaines.forEach(d => {
     const o = document.createElement('option');
-    o.value = d.id; o.textContent = d.numero + '. ' + d.nom;
+    o.value = d.id;
+    o.textContent = d.numero + '. ' + d.nom;
     if (prefill.domaine_id === d.id) o.selected = true;
     domSel.appendChild(o);
   });
@@ -334,27 +416,39 @@ function openModalCible(prefill = {}) {
     srcSel.appendChild(o);
   });
 
-  updateResultatsSelect(prefill.domaine_id);
-  if (prefill.resultat_attendu) {
-    const sel = document.getElementById('cible-resultat-select');
-    let found = false;
-    for (let opt of sel.options) { if (opt.value === prefill.resultat_attendu) { opt.selected = true; found = true; break; } }
-    if (!found) document.getElementById('cible-resultat-libre').value = prefill.resultat_attendu;
+  // Résultats attendus : pré-remplir si modification
+  state.tempResultats = [];
+  if (prefill.id) {
+    const existingResultats = state.cibleResultats.filter(r => r.cible_id === prefill.id);
+    existingResultats.forEach(r => state.tempResultats.push(r.resultat_libelle));
+    // Migration depuis l'ancien champ resultat_attendu si vide
+    if (existingResultats.length === 0 && prefill.resultat_attendu) {
+      state.tempResultats.push(prefill.resultat_attendu);
+    }
   }
+  renderResultatsTags();
+  updateResultatsSelect(prefill.domaine_id);
 
   if (prefill.id) {
     document.getElementById('cible-description').value = prefill.description_action || prefill.intitule || '';
-    document.getElementById('cible-nombre').value = prefill.nombre_attendu || 1;
+    document.getElementById('cible-nb-contacts').value = prefill.nombre_contacts_attendus || 0;
+    document.getElementById('cible-nb-rdv').value = prefill.nombre_rdv_attendus || 0;
     document.getElementById('cible-echeance').value = prefill.date_echeance || '';
+    document.getElementById('cible-echeance-alert').style.display = prefill.date_echeance ? 'none' : 'inline';
     document.getElementById('cible-periode').value = prefill.periode_msi || '';
     document.getElementById('cible-montant').value = prefill.montant_estime || 0;
     document.getElementById('cible-confiance').value = prefill.niveau_confiance ?? 0.5;
     document.getElementById('cible-notes').value = prefill.notes || '';
-    document.getElementById('cible-statut-avancement').value = prefill.statut_avancement || 'Communication';
+    document.getElementById('cible-terminee').checked = prefill.est_terminee || false;
+    // Statut migration
+    let statut = prefill.statut_avancement || 'Négociation';
+    if (['Communication','Financement','Paiement','CRM'].includes(statut)) statut = 'Négociation';
+    document.getElementById('cible-statut-avancement').value = statut;
     document.getElementById('cible-etape').value = prefill.etape || 1;
     document.getElementById('section-avancement').style.display = getColonneCible(prefill) === 5 ? 'flex' : 'none';
   } else {
     document.getElementById('cible-etape').value = 1;
+    document.getElementById('cible-echeance-alert').style.display = 'inline';
     document.getElementById('section-avancement').style.display = 'none';
   }
   document.getElementById('modal-cible').classList.remove('hidden');
@@ -364,23 +458,53 @@ function updateResultatsSelect(domId) {
   const sel = document.getElementById('cible-resultat-select');
   sel.innerHTML = '<option value="">— Choisir dans la liste —</option>';
   state.resultatsAttendus.filter(r => r.domaine_id === domId).forEach(r => {
-    const o = document.createElement('option');
-    o.value = r.libelle; o.textContent = r.libelle;
-    sel.appendChild(o);
+    if (!state.tempResultats.includes(r.libelle)) {
+      const o = document.createElement('option');
+      o.value = r.libelle; o.textContent = r.libelle;
+      sel.appendChild(o);
+    }
   });
 }
+
+function addResultatTag(libelle) {
+  if (state.tempResultats.includes(libelle)) return;
+  state.tempResultats.push(libelle);
+  renderResultatsTags();
+  const domId = parseInt(document.getElementById('cible-domaine').value);
+  if (domId) updateResultatsSelect(domId);
+}
+
+function removeResultatTag(libelle) {
+  state.tempResultats = state.tempResultats.filter(r => r !== libelle);
+  renderResultatsTags();
+  const domId = parseInt(document.getElementById('cible-domaine').value);
+  if (domId) updateResultatsSelect(domId);
+}
+
+function renderResultatsTags() {
+  const container = document.getElementById('resultats-attendus-list');
+  container.innerHTML = '';
+  if (state.tempResultats.length === 0) {
+    container.innerHTML = '<span class="hint">Aucun résultat ajouté</span>';
+    return;
+  }
+  state.tempResultats.forEach(r => {
+    const tag = document.createElement('span');
+    tag.className = 'resultat-tag';
+    tag.innerHTML = `${r}<span class="resultat-tag-delete">✕</span>`;
+    tag.querySelector('.resultat-tag-delete').addEventListener('click', () => removeResultatTag(r));
+    container.appendChild(tag);
+  });
+}
+
+document.addEventListener('change', e => {
+  if (e.target.id === 'cible-domaine') updateResultatsSelect(parseInt(e.target.value));
+});
 
 async function saveCible(e) {
   e.preventDefault();
   const id = document.getElementById('cible-id').value;
   const domaineId = parseInt(document.getElementById('cible-domaine').value) || null;
-  const resultatSelect = document.getElementById('cible-resultat-select').value;
-  const resultatLibre = document.getElementById('cible-resultat-libre').value.trim();
-  const resultatFinal = resultatLibre || resultatSelect || null;
-
-  if (resultatLibre && domaineId) {
-    await sb.from('resultats_attendus').upsert({ domaine_id: domaineId, libelle: resultatLibre, ordre_affichage: 999 }, { onConflict: 'domaine_id,libelle' });
-  }
 
   let etape = parseInt(document.getElementById('cible-etape').value) || 1;
   if (domaineId) {
@@ -388,29 +512,50 @@ async function saveCible(e) {
     if (dom) etape = dom.numero;
   }
 
+  const estTerminee = document.getElementById('cible-terminee').checked;
   const data = {
     description_action: document.getElementById('cible-description').value,
     intitule: document.getElementById('cible-description').value,
     domaine_id: domaineId,
     responsable_id: document.getElementById('cible-responsable').value || null,
     source_id: parseInt(document.getElementById('cible-source').value) || null,
-    resultat_attendu: resultatFinal,
-    nombre_attendu: parseInt(document.getElementById('cible-nombre').value) || 0,
+    nombre_contacts_attendus: parseInt(document.getElementById('cible-nb-contacts').value) || 0,
+    nombre_rdv_attendus: parseInt(document.getElementById('cible-nb-rdv').value) || 0,
     date_echeance: document.getElementById('cible-echeance').value || null,
     etape: etape,
     periode_msi: document.getElementById('cible-periode').value || null,
     montant_estime: parseFloat(document.getElementById('cible-montant').value) || 0,
     niveau_confiance: parseFloat(document.getElementById('cible-confiance').value) || 0.5,
     notes: document.getElementById('cible-notes').value || null,
-    statut_avancement: document.getElementById('cible-statut-avancement').value || null,
+    statut_avancement: etape === 5 ? document.getElementById('cible-statut-avancement').value : null,
+    est_terminee: estTerminee,
+    date_terminee: estTerminee ? new Date().toISOString() : null,
     produit_id: state.produitActif?.id || null,
     updated_at: new Date().toISOString()
   };
   if (data.statut_avancement === 'Signé') data.date_signature = new Date().toISOString().split('T')[0];
 
-  const { error } = id ? await sb.from('cibles_msi').update(data).eq('id', id) : await sb.from('cibles_msi').insert([data]);
-  if (error) showToast('Erreur : ' + error.message, 'error');
-  else { showToast(id ? 'Tâche modifiée' : 'Tâche créée', 'success'); closeM('modal-cible'); await loadData(); renderAll(); }
+  const { data: result, error } = id 
+    ? await sb.from('cibles_msi').update(data).eq('id', id).select() 
+    : await sb.from('cibles_msi').insert([data]).select();
+  
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  
+  const cibleId = id || (result && result[0]?.id);
+  if (cibleId) {
+    // Supprimer anciens résultats puis re-créer
+    await sb.from('cible_resultats_attendus').delete().eq('cible_id', cibleId);
+    for (const r of state.tempResultats) {
+      await sb.from('cible_resultats_attendus').insert([{ cible_id: cibleId, resultat_libelle: r }]);
+      // Ajouter à la liste globale si nouveau
+      if (domaineId && !state.resultatsAttendus.find(x => x.domaine_id === domaineId && x.libelle === r)) {
+        await sb.from('resultats_attendus').upsert({ domaine_id: domaineId, libelle: r, ordre_affichage: 999 }, { onConflict: 'domaine_id,libelle' });
+      }
+    }
+  }
+  showToast(id ? 'Tâche modifiée' : 'Tâche créée', 'success');
+  closeM('modal-cible');
+  await loadData(); renderAll();
 }
 
 async function deleteCible() {
@@ -421,14 +566,13 @@ async function deleteCible() {
 }
 
 // ============================================================
-// ÉVÉNEMENTS ENRICHIS
+// ÉVÉNEMENTS
 // ============================================================
 function openModal(prefill = {}) {
   document.getElementById('event-form').reset();
   document.getElementById('event-id').value = prefill.id || '';
   document.getElementById('modal-title').textContent = prefill.id ? 'Modifier événement' : 'Nouvel événement';
   document.getElementById('btn-delete').classList.toggle('hidden', !prefill.id);
-
   const srcSelect = document.getElementById('event-source');
   srcSelect.innerHTML = '<option value="">Choisir...</option>';
   state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
@@ -437,7 +581,6 @@ function openModal(prefill = {}) {
     if (prefill.source_id === s.id) o.selected = true;
     srcSelect.appendChild(o);
   });
-
   const respSelect = document.getElementById('event-responsable');
   respSelect.innerHTML = '<option value="">Choisir...</option>';
   state.utilisateurs.forEach(u => {
@@ -446,7 +589,6 @@ function openModal(prefill = {}) {
     if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) o.selected = true;
     respSelect.appendChild(o);
   });
-
   if (prefill.id) {
     document.getElementById('event-quoi').value = prefill.quoi || '';
     document.getElementById('event-date').value = prefill.date_evenement || '';
@@ -462,7 +604,7 @@ function openModal(prefill = {}) {
   } else if (prefill.date_evenement) {
     document.getElementById('event-date').value = prefill.date_evenement;
     document.getElementById('event-quoi').value = prefill.quoi || '';
-    document.getElementById('event-objectifs-list').innerHTML = '<p class="hint" style="margin:8px 0;">Enregistrez d\'abord l\'événement pour pouvoir ajouter des objectifs.</p>';
+    document.getElementById('event-objectifs-list').innerHTML = '<p class="hint">Enregistrez l\'événement pour ajouter des objectifs.</p>';
   }
   document.getElementById('modal').classList.remove('hidden');
 }
@@ -471,21 +613,12 @@ function renderEventObjectifsList(evtId) {
   const container = document.getElementById('event-objectifs-list');
   container.innerHTML = '';
   const objs = state.evtObjectifs.filter(o => o.evenement_id === evtId);
-  if (objs.length === 0) {
-    container.innerHTML = '<p class="hint" style="margin:8px 0;">Aucun objectif défini. Cliquez sur "+ Ajouter un objectif".</p>';
-    return;
-  }
+  if (objs.length === 0) { container.innerHTML = '<p class="hint">Aucun objectif défini.</p>'; return; }
   objs.forEach(o => {
     const div = document.createElement('div');
     div.className = 'event-objectif-item';
     const realise = o.nombre_realise !== null ? o.nombre_realise : '—';
-    div.innerHTML = `
-      <div class="event-objectif-item-content">
-        <div class="event-objectif-item-type">${o.type_objectif}</div>
-        <div class="event-objectif-item-desc">${o.description || '(sans description)'}${o.commentaire ? ' · '+o.commentaire : ''}</div>
-      </div>
-      <div class="event-objectif-item-stats"><strong>${realise}</strong> / ${o.nombre_cible}</div>
-    `;
+    div.innerHTML = `<div class="event-objectif-item-content"><div class="event-objectif-item-type">${o.type_objectif}</div><div class="event-objectif-item-desc">${o.description || '(sans description)'}</div></div><div class="event-objectif-item-stats"><strong>${realise}</strong> / ${o.nombre_cible}</div>`;
     div.addEventListener('click', () => openModalObjectifEvt(o));
     container.appendChild(div);
   });
@@ -519,6 +652,7 @@ async function saveEvent(e) {
       renderEventObjectifsList(result[0].id);
       document.getElementById('btn-delete').classList.remove('hidden');
       await loadData();
+      renderCalendar(); // rafraîchissement rapide
     } else {
       closeM('modal');
       await loadData();
@@ -534,9 +668,6 @@ async function deleteEvent() {
   showToast('Événement supprimé', 'success'); closeM('modal'); await loadData(); renderAll();
 }
 
-// ============================================================
-// OBJECTIFS PAR ÉVÉNEMENT
-// ============================================================
 function openModalObjectifEvt(prefill = {}) {
   document.getElementById('obj-evt-form').reset();
   document.getElementById('obj-evt-id').value = prefill.id || '';
@@ -595,13 +726,10 @@ function renderChecklistItems(sourceId) {
   const container = document.getElementById('checklist-items');
   container.innerHTML = '';
   const items = state.checklist.filter(c => c.source_id === sourceId);
-
-  // Mettre à jour le compteur dans la toolbar
   const countEl = document.getElementById('checklist-count');
   if (countEl) countEl.innerHTML = `<strong>${items.length}</strong> action${items.length > 1 ? 's' : ''}`;
-
   if (items.length === 0) {
-    container.innerHTML = '<p class="empty">Aucune action dans la checklist. Cliquez sur "+ Ajouter une action" pour commencer.</p>';
+    container.innerHTML = '<p class="empty">Aucune action dans la checklist. Cliquez sur "+ Ajouter une action".</p>';
     return;
   }
   items.forEach((item, idx) => {
@@ -611,14 +739,7 @@ function renderChecklistItems(sourceId) {
     if (item.delai) detailsHTML += `<span class="checklist-detail-badge checklist-detail-delai">${item.delai}</span>`;
     if (item.responsable_type) detailsHTML += `<span class="checklist-detail-badge checklist-detail-responsable">${item.responsable_type}</span>`;
     if (item.outils) detailsHTML += `<span class="checklist-detail-badge checklist-detail-outils">${item.outils}</span>`;
-    div.innerHTML = `
-      <div class="checklist-item-number">${idx + 1}</div>
-      <div class="checklist-item-content">
-        <div class="checklist-item-action">${item.action}</div>
-        ${detailsHTML ? `<div class="checklist-item-details">${detailsHTML}</div>` : ''}
-      </div>
-      <button class="checklist-item-edit" type="button">Modifier</button>
-    `;
+    div.innerHTML = `<div class="checklist-item-number">${idx + 1}</div><div class="checklist-item-content"><div class="checklist-item-action">${item.action}</div>${detailsHTML ? `<div class="checklist-item-details">${detailsHTML}</div>` : ''}</div><button class="checklist-item-edit" type="button">Modifier</button>`;
     div.addEventListener('click', () => openModalChecklistItem(item));
     container.appendChild(div);
   });
@@ -664,23 +785,20 @@ async function deleteChecklistItem() {
 }
 
 // ============================================================
-// SOURCES (création/édition)
+// SOURCES (création depuis calendrier)
 // ============================================================
 function openModalSource(prefill = {}) {
   document.getElementById('source-form').reset();
   document.getElementById('source-id').value = prefill.id || '';
   document.getElementById('modal-source-title').textContent = prefill.id ? 'Modifier source' : 'Nouvelle source';
-  document.getElementById('btn-delete-source').classList.toggle('hidden', !prefill.id);
-
   const parentSel = document.getElementById('source-parent');
-  parentSel.innerHTML = '<option value="">— Aucun parent</option>';
+  parentSel.innerHTML = '<option value="">— Aucun parent (source principale)</option>';
   state.sources.filter(s => !s.parent_id && s.id !== prefill.id).forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = s.nom;
     if (prefill.parent_id === s.id) o.selected = true;
     parentSel.appendChild(o);
   });
-
   if (prefill.id) {
     document.getElementById('source-nom').value = prefill.nom || '';
     document.getElementById('source-groupe').value = prefill.groupe || 'EVENEMENT';
@@ -701,22 +819,51 @@ async function saveSource(e) {
   };
   const { error } = id ? await sb.from('sources').update(data).eq('id', id) : await sb.from('sources').insert([data]);
   if (error) showToast('Erreur : ' + error.message, 'error');
-  else { showToast(id ? 'Source modifiée' : 'Source créée', 'success'); closeM('modal-source'); await loadData(); renderAll(); }
+  else { showToast(id ? 'Source modifiée' : 'Source créée', 'success'); closeM('modal-source'); await loadData(); renderCalendar(); }
 }
 
-async function deleteSource() {
-  const id = document.getElementById('source-id').value;
-  if (!id || !confirm('Supprimer cette source ? Sa checklist, ses événements et ses objectifs liés seront aussi supprimés.')) return;
-  const { error } = await sb.from('sources').delete().eq('id', id);
-  if (error) {
-    console.error('Erreur suppression source:', error);
-    showToast('Erreur : ' + error.message, 'error');
-    return;
+// ============================================================
+// JALONS MSI
+// ============================================================
+function openModalJalon(prefill = {}) {
+  document.getElementById('jalon-form').reset();
+  document.getElementById('jalon-id').value = prefill.id || '';
+  document.getElementById('modal-jalon-title').textContent = prefill.id ? 'Modifier le jalon' : 'Nouveau jalon MSI';
+  document.getElementById('btn-delete-jalon').classList.toggle('hidden', !prefill.id);
+  if (prefill.id) {
+    document.getElementById('jalon-titre').value = prefill.titre || '';
+    document.getElementById('jalon-type').value = prefill.type_jalon || 'Revue projet';
+    document.getElementById('jalon-couleur').value = prefill.couleur || '#A32D2D';
+    document.getElementById('jalon-date').value = prefill.date_debut || '';
+    document.getElementById('jalon-date-fin').value = prefill.date_fin || '';
+    document.getElementById('jalon-desc').value = prefill.description || '';
   }
-  showToast('Source supprimée', 'success');
-  closeM('modal-source');
-  await loadData();
-  renderAll();
+  document.getElementById('modal-jalon').classList.remove('hidden');
+}
+
+async function saveJalon(e) {
+  e.preventDefault();
+  const id = document.getElementById('jalon-id').value;
+  const data = {
+    produit_id: state.produitActif?.id || null,
+    titre: document.getElementById('jalon-titre').value,
+    type_jalon: document.getElementById('jalon-type').value,
+    couleur: document.getElementById('jalon-couleur').value,
+    date_debut: document.getElementById('jalon-date').value,
+    date_fin: document.getElementById('jalon-date-fin').value || null,
+    description: document.getElementById('jalon-desc').value || null,
+    updated_at: new Date().toISOString()
+  };
+  const { error } = id ? await sb.from('jalons_msi').update(data).eq('id', id) : await sb.from('jalons_msi').insert([data]);
+  if (error) showToast('Erreur : ' + error.message, 'error');
+  else { showToast(id ? 'Jalon modifié' : 'Jalon créé', 'success'); closeM('modal-jalon'); await loadData(); renderJalons(); }
+}
+
+async function deleteJalon() {
+  const id = document.getElementById('jalon-id').value;
+  if (!id || !confirm('Supprimer ce jalon ?')) return;
+  await sb.from('jalons_msi').delete().eq('id', id);
+  showToast('Jalon supprimé', 'success'); closeM('modal-jalon'); await loadData(); renderJalons();
 }
 
 // ============================================================
@@ -737,7 +884,6 @@ async function savePeriode(e) {
   await sb.from('objectifs_annuels').insert([{ annee: state.obj_annee, periode_msi: code, ca_cible: 0, msi_cible: 0, commentaire }]);
   showToast('Période ajoutée', 'success'); closeM('modal-periode'); await loadData(); renderObjectifsAnnuels(); renderDashboard();
 }
-
 // ============================================================
 // RENDUS
 // ============================================================
@@ -746,6 +892,7 @@ function renderAll() {
   renderKanban();
   renderHebdo();
   renderCalendar();
+  renderJalons();
   renderEventsTable();
   renderObjectifsAnnuels();
   renderKpi6Table();
@@ -763,8 +910,9 @@ function renderKanban() {
   let cibles = getCiblesProduitActif();
   if (state.plan_periode) cibles = cibles.filter(c => c.periode_msi === state.plan_periode);
   if (state.plan_responsable) cibles = cibles.filter(c => c.responsable_id === state.plan_responsable);
+  if (!state.plan_show_done) cibles = cibles.filter(c => !c.est_terminee);
 
-  COLONNES_V7.forEach(col => {
+  COLONNES_V8.forEach(col => {
     const div = document.createElement('div');
     div.className = 'kanban-column' + (col.type === 'avancement' ? ' col-avancement' : '');
     div.dataset.colonne = col.numero;
@@ -799,7 +947,9 @@ function renderKanban() {
         newData.etape = 4; newData.statut_avancement = null;
       } else if (col.numero === 5) {
         newData.etape = 5;
-        if (!cible.statut_avancement) newData.statut_avancement = 'Communication';
+        if (!cible.statut_avancement || ['Communication','Financement','Paiement','CRM'].includes(cible.statut_avancement)) {
+          newData.statut_avancement = 'Négociation';
+        }
       }
       await sb.from('cibles_msi').update(newData).eq('id', cibleId);
       showToast(`Tâche déplacée vers "${col.libelle}"`, 'success');
@@ -809,32 +959,94 @@ function renderKanban() {
     if (cs.length === 0) {
       body.innerHTML = '<div class="kanban-empty">Aucune tâche</div>';
     } else {
-      cs.forEach(c => {
-        const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
-        const src = state.sources.find(s => s.id === c.source_id);
-        const card = document.createElement('div');
-        card.className = 'kanban-card';
-        card.draggable = true;
-        card.style.borderLeftColor = col.couleur;
-        const description = c.description_action || c.intitule || '(sans description)';
-        const isOverdue = c.date_echeance && new Date(c.date_echeance) < new Date() && col.numero < 5;
-        let cardHTML = `<div class="kanban-card-title">${description}</div>`;
-        if (c.resultat_attendu) cardHTML += `<div class="kanban-card-resultat"><strong>Attendu :</strong> ${c.resultat_attendu}${c.nombre_attendu ? ' ('+c.nombre_attendu+')' : ''}</div>`;
-        if (src) cardHTML += `<div class="kanban-card-resultat" style="font-size:10px;">${src.nom}</div>`;
-        cardHTML += `<div class="kanban-card-meta">`;
-        cardHTML += `<span>${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '—'}</span>`;
-        if (col.numero === 5 && c.statut_avancement) cardHTML += `<span class="kanban-card-statut">${c.statut_avancement}</span>`;
-        else if (c.date_echeance) cardHTML += `<span class="kanban-card-echeance${isOverdue ? ' overdue' : ''}">${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</span>`;
-        if (col.numero === 5 && c.montant_estime > 0) cardHTML += `<span class="kanban-card-montant">${formatEuro(c.montant_estime)} €</span>`;
-        cardHTML += `</div>`;
-        card.innerHTML = cardHTML;
-        card.addEventListener('dragstart', e => { state.draggedCibleId = c.id; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
-        card.addEventListener('dragend', () => { card.classList.remove('dragging'); state.draggedCibleId = null; });
-        card.addEventListener('click', e => { if (!card.classList.contains('dragging')) openModalCible(c); });
-        body.appendChild(card);
-      });
+      cs.forEach(c => renderKanbanCard(c, col, body));
     }
   });
+}
+
+function renderKanbanCard(c, col, body) {
+  const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
+  const src = state.sources.find(s => s.id === c.source_id);
+  const card = document.createElement('div');
+  card.className = 'kanban-card';
+  if (c.est_terminee) card.classList.add('tache-terminee');
+  if (isTacheEnRetard(c)) card.classList.add('tache-retard');
+  if (isTacheSansEcheance(c)) card.classList.add('tache-retard-soft');
+  card.draggable = !c.est_terminee;
+  card.style.borderLeftColor = col.couleur;
+
+  const description = c.description_action || c.intitule || '(sans description)';
+
+  // Header avec checkbox
+  let html = `
+    <div class="kanban-card-header">
+      <label class="kanban-card-check" onclick="event.stopPropagation()">
+        <input type="checkbox" data-toggle-done="${c.id}" ${c.est_terminee ? 'checked' : ''}>
+      </label>
+      <div class="kanban-card-title">${description}</div>
+    </div>
+  `;
+
+  // Résultats attendus (multiples)
+  const resultats = state.cibleResultats.filter(r => r.cible_id === c.id);
+  const resultatsLibelles = resultats.map(r => r.resultat_libelle);
+  if (resultatsLibelles.length === 0 && c.resultat_attendu) resultatsLibelles.push(c.resultat_attendu);
+  if (resultatsLibelles.length > 0) {
+    html += `<div class="kanban-card-resultat"><strong>Attendu :</strong> ${resultatsLibelles.join(', ')}</div>`;
+  }
+
+  // Nombres attendus
+  if (c.nombre_contacts_attendus > 0 || c.nombre_rdv_attendus > 0) {
+    html += `<div class="kanban-card-nb">`;
+    if (c.nombre_contacts_attendus > 0) html += `<span>👥 ${c.nombre_contacts_attendus} contacts</span>`;
+    if (c.nombre_rdv_attendus > 0) html += `<span>🗓️ ${c.nombre_rdv_attendus} RDV</span>`;
+    html += `</div>`;
+  }
+
+  if (src) html += `<div class="kanban-card-resultat" style="font-size:10px;">${src.nom}</div>`;
+
+  html += `<div class="kanban-card-meta">`;
+  html += `<span>${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '—'}</span>`;
+  if (col.numero === 5 && c.statut_avancement) {
+    html += `<span class="kanban-card-statut">${c.statut_avancement}</span>`;
+  } else if (c.date_echeance) {
+    const isOver = isTacheEnRetard(c);
+    html += `<span class="kanban-card-echeance${isOver ? ' overdue' : ''}">${new Date(c.date_echeance).toLocaleDateString('fr-FR')}${isOver ? ' ⚠️' : ''}</span>`;
+  } else if (!c.est_terminee) {
+    html += `<span class="kanban-card-echeance missing">⚠️ Sans échéance</span>`;
+  }
+  if (col.numero === 5 && c.montant_estime > 0) html += `<span class="kanban-card-montant">${formatEuro(c.montant_estime)} €</span>`;
+  html += `</div>`;
+
+  card.innerHTML = html;
+
+  // Drag & drop
+  card.addEventListener('dragstart', e => {
+    if (c.est_terminee) { e.preventDefault(); return; }
+    state.draggedCibleId = c.id; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move';
+  });
+  card.addEventListener('dragend', () => { card.classList.remove('dragging'); state.draggedCibleId = null; });
+
+  // Toggle terminée
+  card.querySelector('[data-toggle-done]').addEventListener('change', async e => {
+    e.stopPropagation();
+    const done = e.target.checked;
+    await sb.from('cibles_msi').update({ 
+      est_terminee: done, 
+      date_terminee: done ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString()
+    }).eq('id', c.id);
+    await loadData(); renderAll();
+    showToast(done ? 'Tâche marquée comme terminée' : 'Tâche réouverte', 'success');
+  });
+
+  // Clic ouverture
+  card.addEventListener('click', e => {
+    if (e.target.type === 'checkbox') return;
+    if (!card.classList.contains('dragging')) openModalCible(c);
+  });
+
+  body.appendChild(card);
 }
 
 function renderDashboard() {
@@ -842,12 +1054,13 @@ function renderDashboard() {
   const caObjectif = objAnnuelGlobal?.ca_cible || 0;
   const msiObjectif = objAnnuelGlobal?.msi_cible || 0;
   const cibles = getCiblesProduitActif();
-  const ciblesActives = cibles.filter(c => getColonneCible(c) < 5 || (c.statut_avancement && !['Signé','Perdu'].includes(c.statut_avancement)));
+  const ciblesOuvertes = cibles.filter(c => !c.est_terminee);
+  const ciblesEnAvancement = cibles.filter(c => getColonneCible(c) === 5 && !c.est_terminee);
   const ciblesSignees = cibles.filter(c => c.statut_avancement === 'Signé');
   const ciblesPerdues = cibles.filter(c => c.statut_avancement === 'Perdu');
-  const ciblesEnCours = cibles.filter(c => getColonneCible(c) === 4);
+  const ciblesEnNegociation = cibles.filter(c => c.statut_avancement === 'Négociation' && !c.est_terminee);
   const caSigne = ciblesSignees.reduce((s,c) => s + (c.montant_estime || 0), 0);
-  const caEnCours = ciblesActives.reduce((s,c) => s + ((c.montant_estime || 0) * (c.niveau_confiance || 0)), 0);
+  const caEnCours = ciblesEnAvancement.filter(c => !['Signé','Perdu'].includes(c.statut_avancement)).reduce((s,c) => s + ((c.montant_estime || 0) * (c.niveau_confiance || 0)), 0);
   const atteinteCA = caObjectif > 0 ? Math.round((caSigne / caObjectif) * 100) : 0;
   const rdvSem = state.suivi.filter(s => s.type_activite === 'RDV effectués' && s.annee === state.annee && s.semaine === state.hebdo_semaine).reduce((sum,s) => sum + (s.nombre||0), 0);
   const propMois = state.suivi.filter(s => s.type_activite === 'Propositions envoyées' && s.annee === state.annee && s.semaine >= state.hebdo_semaine-3 && s.semaine <= state.hebdo_semaine).reduce((sum,s) => sum + (s.nombre||0), 0);
@@ -879,7 +1092,7 @@ function renderDashboard() {
   if (msiObjectif > 0) { statusContrats.className = 'kpi-card-big-status ' + (contratsOk ? 'ok' : 'alert'); statusContrats.textContent = contratsOk ? 'Atteint' : Math.round((ciblesSignees.length/msiObjectif)*100) + ' %'; }
   else statusContrats.textContent = '';
 
-  // 6 KPI
+  // 6 KPI avec chiffres ET pourcentages
   const kpiCibles = {};
   if (state.produitActif) {
     state.kpiObjectifs.filter(k => k.produit_id === state.produitActif.id && k.periode_msi === 'ANNUEL').forEach(k => kpiCibles[k.type_kpi] = k.valeur_cible);
@@ -888,15 +1101,23 @@ function renderDashboard() {
   const contactsAnnee = state.suivi.filter(s => s.annee === state.annee && s.type_activite === 'Appels / Contacts').reduce((sum,s) => sum + (s.nombre||0), 0);
   const propAnnee = state.suivi.filter(s => s.annee === state.annee && s.type_activite === 'Propositions envoyées').reduce((sum,s) => sum + (s.nombre||0), 0);
 
-  document.getElementById('kpi6-contacts').textContent = contactsAnnee;
-  document.getElementById('kpi6-contacts-obj').textContent = kpiCibles.contacts ? 'Cible ' + kpiCibles.contacts : '';
-  document.getElementById('kpi6-rdv').textContent = rdvAnnee;
-  document.getElementById('kpi6-rdv-obj').textContent = kpiCibles.rdv_qualifies ? 'Cible ' + kpiCibles.rdv_qualifies : '';
-  document.getElementById('kpi6-propales').textContent = propAnnee;
-  document.getElementById('kpi6-propales-obj').textContent = kpiCibles.propales_redigees ? 'Cible ' + kpiCibles.propales_redigees : '';
-  document.getElementById('kpi6-encours').textContent = ciblesEnCours.length;
-  document.getElementById('kpi6-signees').textContent = ciblesSignees.length;
-  document.getElementById('kpi6-signees-obj').textContent = kpiCibles.offres_signees ? 'Cible ' + kpiCibles.offres_signees : '';
+  function setKpi(realiseId, objId, pctId, realise, cible) {
+    document.getElementById(realiseId).textContent = realise;
+    document.getElementById(objId).textContent = cible ? 'Cible ' + cible : '';
+    const pctEl = document.getElementById(pctId);
+    if (pctEl) {
+      if (cible > 0) {
+        const pct = Math.round((realise / cible) * 100);
+        pctEl.textContent = pct + ' %';
+        pctEl.className = 'kpi-percent' + (pct >= 100 ? '' : (pct < 50 ? ' alert' : ''));
+      } else { pctEl.textContent = ''; }
+    }
+  }
+  setKpi('kpi6-contacts', 'kpi6-contacts-obj', 'kpi6-contacts-pct', contactsAnnee, kpiCibles.contacts || 0);
+  setKpi('kpi6-rdv', 'kpi6-rdv-obj', 'kpi6-rdv-pct', rdvAnnee, kpiCibles.rdv_qualifies || 0);
+  setKpi('kpi6-propales', 'kpi6-propales-obj', 'kpi6-propales-pct', propAnnee, kpiCibles.propales_redigees || 0);
+  document.getElementById('kpi6-encours').textContent = ciblesEnNegociation.length;
+  setKpi('kpi6-signees', 'kpi6-signees-obj', 'kpi6-signees-pct', ciblesSignees.length, kpiCibles.offres_signees || 0);
   document.getElementById('kpi6-perdues').textContent = ciblesPerdues.length;
   document.getElementById('kpi6-perdues-obj').textContent = kpiCibles.offres_perdues ? 'Cible max ' + kpiCibles.offres_perdues : '';
 
@@ -904,8 +1125,9 @@ function renderDashboard() {
   document.getElementById('kpi-ca-cours').textContent = formatEuro(caEnCours);
   document.getElementById('kpi-ca-objectif').textContent = formatEuro(caObjectif);
   document.getElementById('kpi-atteinte-ca').textContent = atteinteCA + ' %';
-  document.getElementById('kpi-cibles-act').textContent = ciblesActives.length;
+  document.getElementById('kpi-cibles-act').textContent = ciblesOuvertes.length;
 
+  // Périodes
   const periodes = state.objectifsAnnuels.filter(o => o.annee === state.annee && o.periode_msi !== 'ANNUEL');
   const tbodyPer = document.querySelector('#periodes-table tbody');
   tbodyPer.innerHTML = '';
@@ -913,7 +1135,7 @@ function renderDashboard() {
   else periodes.forEach(p => {
     const cs = cibles.filter(c => c.periode_msi === p.periode_msi);
     const caSP = cs.filter(c => c.statut_avancement === 'Signé').reduce((s,c) => s + (c.montant_estime||0), 0);
-    const caCP = cs.filter(c => !['Signé','Perdu'].includes(c.statut_avancement)).reduce((s,c) => s + ((c.montant_estime||0)*(c.niveau_confiance||0)), 0);
+    const caCP = cs.filter(c => !['Signé','Perdu'].includes(c.statut_avancement) && !c.est_terminee).reduce((s,c) => s + ((c.montant_estime||0)*(c.niveau_confiance||0)), 0);
     const sigP = cs.filter(c => c.statut_avancement === 'Signé').length;
     const att = p.ca_cible > 0 ? Math.round((caSP / p.ca_cible)*100) : 0;
     const cls = att >= 100 ? 'badge-success' : (att >= 50 ? 'badge-warning' : 'badge-info');
@@ -922,26 +1144,47 @@ function renderDashboard() {
     tbodyPer.appendChild(tr);
   });
 
+  // Colonnes : ouvertes vs terminées
   const tbodyCol = document.querySelector('#colonnes-table tbody');
   tbodyCol.innerHTML = '';
-  COLONNES_V7.forEach(col => {
+  COLONNES_V8.forEach(col => {
     const cs = cibles.filter(c => getColonneCible(c) === col.numero);
+    const ouvertes = cs.filter(c => !c.est_terminee).length;
+    const terminees = cs.filter(c => c.est_terminee).length;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><strong>${col.numero}. ${col.libelle}</strong> <span style="color:#888780;font-size:11px;">(${col.sublabel})</span></td><td>${cs.length}</td>`;
+    tr.innerHTML = `<td><strong>${col.numero}. ${col.libelle}</strong></td><td>${ouvertes}</td><td>${terminees}</td><td>${cs.length}</td>`;
     tbodyCol.appendChild(tr);
   });
 
+  // Tâches en retard
+  const tbodyR = document.querySelector('#retards-table tbody');
+  tbodyR.innerHTML = '';
+  const retards = cibles.filter(c => isTacheEnRetard(c));
+  if (retards.length === 0) tbodyR.innerHTML = '<tr><td colspan="5" class="empty">Aucune tâche en retard 🎉</td></tr>';
+  else retards.forEach(c => {
+    const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
+    const col = COLONNES_V8.find(co => co.numero === getColonneCible(c));
+    const jours = Math.floor((new Date() - new Date(c.date_echeance)) / 86400000);
+    const tr = document.createElement('tr');
+    tr.className = 'retard';
+    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td>${col?.libelle || '—'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><strong>${jours} j</strong></td>`;
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', () => openModalCible(c));
+    tbodyR.appendChild(tr);
+  });
+
+  // Performance par commercial : tâches actives à faire (ouvertes, non terminées)
   const tbodyC = document.querySelector('#commerciaux-table tbody');
   tbodyC.innerHTML = '';
   if (state.utilisateurs.length === 0) tbodyC.innerHTML = '<tr><td colspan="5" class="empty">Aucun commercial.</td></tr>';
   else state.utilisateurs.forEach(u => {
     const cs = cibles.filter(c => c.responsable_id === u.id);
-    const csA = cs.filter(c => !['Signé','Perdu'].includes(c.statut_avancement));
+    const csOuvertes = cs.filter(c => !c.est_terminee).length;
     const rdv = state.suivi.filter(s => s.utilisateur_id === u.id && s.type_activite === 'RDV effectués').reduce((sum,s) => sum + (s.nombre||0), 0);
     const prop = state.suivi.filter(s => s.utilisateur_id === u.id && s.type_activite === 'Propositions envoyées').reduce((sum,s) => sum + (s.nombre||0), 0);
     const signe = cs.filter(c => c.statut_avancement === 'Signé').reduce((s,c) => s+(c.montant_estime||0), 0);
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><strong>${u.prenom||''} ${u.nom||''}</strong></td><td>${csA.length}</td><td>${rdv}</td><td>${prop}</td><td>${formatEuro(signe)} €</td>`;
+    tr.innerHTML = `<td><strong>${u.prenom||''} ${u.nom||''}</strong></td><td>${csOuvertes}</td><td>${rdv}</td><td>${prop}</td><td>${formatEuro(signe)} €</td>`;
     tbodyC.appendChild(tr);
   });
 
@@ -956,11 +1199,7 @@ function renderKpi6Table() {
   KPI_TYPES.forEach(kpi => {
     const existing = state.kpiObjectifs.find(k => k.produit_id === state.produitActif.id && k.periode_msi === 'ANNUEL' && k.type_kpi === kpi.code);
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><strong>${kpi.label}</strong></td>
-      <td><input type="number" class="kpi-input" data-kpi="${kpi.code}" data-id="${existing?.id || ''}" value="${existing?.valeur_cible || 0}" min="0"></td>
-      <td><input type="text" class="kpi-input" data-kpi="${kpi.code}" data-field="commentaire" data-id="${existing?.id || ''}" value="${existing?.commentaire || ''}" style="max-width:300px;"></td>
-    `;
+    tr.innerHTML = `<td><strong>${kpi.label}</strong></td><td><input type="number" class="kpi-input" data-kpi="${kpi.code}" data-id="${existing?.id || ''}" value="${existing?.valeur_cible || 0}" min="0"></td><td><input type="text" class="kpi-input" data-kpi="${kpi.code}" data-field="commentaire" data-id="${existing?.id || ''}" value="${existing?.commentaire || ''}" style="max-width:300px;"></td>`;
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.kpi-input').forEach(input => {
@@ -1011,7 +1250,7 @@ function renderDashboardCharts() {
     const labels = periodes.map(p => p.periode_msi);
     const ciblesP = periodes.map(p => p.ca_cible || 0);
     const signes = periodes.map(p => cibles.filter(c => c.periode_msi === p.periode_msi && c.statut_avancement === 'Signé').reduce((s,c) => s + (c.montant_estime||0), 0));
-    const enCours = periodes.map(p => cibles.filter(c => c.periode_msi === p.periode_msi && !['Signé','Perdu'].includes(c.statut_avancement)).reduce((s,c) => s + ((c.montant_estime||0)*(c.niveau_confiance||0)), 0));
+    const enCours = periodes.map(p => cibles.filter(c => c.periode_msi === p.periode_msi && !['Signé','Perdu'].includes(c.statut_avancement) && !c.est_terminee).reduce((s,c) => s + ((c.montant_estime||0)*(c.niveau_confiance||0)), 0));
     if (labels.length > 0) state.charts.pipeline = new Chart(ctx2, {
       type: 'bar',
       data: { labels, datasets: [
@@ -1028,7 +1267,7 @@ function renderDashboardCharts() {
   if (ctx3) {
     const labels = [], valeurs = [];
     state.utilisateurs.forEach(u => {
-      const n = cibles.filter(c => c.responsable_id === u.id && !['Signé','Perdu'].includes(c.statut_avancement)).length;
+      const n = cibles.filter(c => c.responsable_id === u.id && !c.est_terminee).length;
       if (n > 0) { labels.push((u.prenom||'')+' '+(u.nom||'')); valeurs.push(n); }
     });
     if (labels.length > 0) state.charts.commerciaux = new Chart(ctx3, {
@@ -1063,7 +1302,7 @@ function renderHebdoCharts() {
   const ctx2 = document.getElementById('chart-evol-prop');
   if (ctx2) state.charts.evolProp = new Chart(ctx2, {
     type: 'line',
-    data: { labels: semaines, datasets: [{ label: 'Propales envoyées', data: propData, borderColor: '#5DCAA5', backgroundColor: 'rgba(93,202,165,0.15)', tension: 0.3, fill: true }] },
+    data: { labels: semaines, datasets: [{ label: 'Offres envoyées', data: propData, borderColor: '#5DCAA5', backgroundColor: 'rgba(93,202,165,0.15)', tension: 0.3, fill: true }] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
   });
   if (state.charts.comparComm) { state.charts.comparComm.destroy(); delete state.charts.comparComm; }
@@ -1078,7 +1317,7 @@ function renderHebdoCharts() {
       data: { labels, datasets: [
         { label: 'Appels / Contacts', data: appAll, backgroundColor: '#85B7EB', borderRadius: 4 },
         { label: 'RDV effectués', data: rdvAll, backgroundColor: '#1F3864', borderRadius: 4 },
-        { label: 'Propositions envoyées', data: propAll, backgroundColor: '#5DCAA5', borderRadius: 4 }
+        { label: 'Offres envoyées', data: propAll, backgroundColor: '#5DCAA5', borderRadius: 4 }
       ]},
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
     });
@@ -1115,6 +1354,11 @@ function renderHebdo() {
       showToast('Enregistré', 'success');
     });
   });
+
+  // Tâches ouvertes à T0 vs T+1
+  renderTachesT0T1();
+
+  // Récap mensuel
   const tbody2 = document.querySelector('#hebdo-recap-table tbody');
   tbody2.innerHTML = '';
   const startWeek = Math.max(1, state.hebdo_semaine - 3);
@@ -1128,6 +1372,41 @@ function renderHebdo() {
     tbody2.appendChild(tr);
   });
   renderHebdoCharts();
+}
+
+function renderTachesT0T1() {
+  const tbody = document.querySelector('#hebdo-taches-table tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  const cibles = getCiblesProduitActif();
+  // Tâches avec échéance dans la semaine actuelle ou avant, non terminées
+  const taches = cibles.filter(c => {
+    if (!c.date_echeance) return false;
+    const week = dateToWeek(c.date_echeance);
+    return week <= state.hebdo_semaine;
+  });
+  if (taches.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Aucune tâche à suivre cette semaine.</td></tr>';
+    return;
+  }
+  taches.forEach(c => {
+    const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
+    const col = COLONNES_V8.find(co => co.numero === getColonneCible(c));
+    let statut, cls;
+    if (c.est_terminee) { statut = '✅ Fermée'; cls = 'badge-success'; }
+    else {
+      const echW = dateToWeek(c.date_echeance);
+      if (echW < state.hebdo_semaine) { statut = '⚠️ Retard depuis S' + echW; cls = 'badge-danger'; }
+      else { statut = '🟡 Ouverte à T+1'; cls = 'badge-warning'; }
+    }
+    const tr = document.createElement('tr');
+    if (statut.startsWith('⚠️')) tr.className = 'retard';
+    else if (statut.startsWith('🟡')) tr.className = 'retard-soft';
+    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td>${col?.libelle || '—'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><span class="badge ${cls}">${statut}</span></td>`;
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', () => openModalCible(c));
+    tbody.appendChild(tr);
+  });
 }
 
 function renderCalendar() {
@@ -1147,8 +1426,7 @@ function renderCalendar() {
 
   const header = document.createElement('div');
   header.className = 'cal-row cal-header';
-  header.innerHTML = '<div class="cal-cell cal-source-header">Source</div>' +
-    MOIS_COURT.map(m => `<div class="cal-cell cal-month-header">${m}</div>`).join('');
+  header.innerHTML = '<div class="cal-cell cal-source-header">Source</div>' + MOIS_COURT.map(m => `<div class="cal-cell cal-month-header">${m}</div>`).join('');
   container.appendChild(header);
   const evAnnee = state.evenements.filter(e => new Date(e.date_evenement).getFullYear() === state.cal_annee);
 
@@ -1206,6 +1484,31 @@ function renderCalendar() {
   });
 }
 
+function renderJalons() {
+  const container = document.getElementById('jalons-grid');
+  if (!container) return;
+  container.innerHTML = '';
+  const jalons = state.jalons.filter(j => {
+    if (!state.produitActif) return true;
+    return j.produit_id === state.produitActif.id || !j.produit_id;
+  }).filter(j => new Date(j.date_debut).getFullYear() === state.cal_annee);
+
+  if (jalons.length === 0) {
+    container.innerHTML = '<p class="empty">Aucun jalon défini pour ' + state.cal_annee + '. Cliquez sur "+ Nouveau jalon" pour en ajouter.</p>';
+    return;
+  }
+  jalons.forEach(j => {
+    const div = document.createElement('div');
+    div.className = 'jalon-card';
+    div.style.borderLeftColor = j.couleur || '#A32D2D';
+    let dateStr = new Date(j.date_debut).toLocaleDateString('fr-FR');
+    if (j.date_fin && j.date_fin !== j.date_debut) dateStr += ' → ' + new Date(j.date_fin).toLocaleDateString('fr-FR');
+    div.innerHTML = `<div class="jalon-card-date">${dateStr}</div><div class="jalon-card-content"><div class="jalon-card-titre">${j.titre}</div>${j.description ? `<div class="jalon-card-desc">${j.description}</div>` : ''}</div><div class="jalon-card-type" style="background:${j.couleur}22;color:${j.couleur};">${j.type_jalon}</div><button class="btn-secondary" type="button" style="font-size:12px;padding:5px 10px;">Modifier</button>`;
+    div.addEventListener('click', () => openModalJalon(j));
+    container.appendChild(div);
+  });
+}
+
 function renderEventsTable() {
   const tbody = document.querySelector('#events-table tbody');
   tbody.innerHTML = '';
@@ -1214,13 +1517,12 @@ function renderEventsTable() {
     const src = state.sources.find(s => s.id === ev.source_id);
     const resp = state.utilisateurs.find(u => u.id === ev.responsable_id);
     const objs = state.evtObjectifs.filter(o => o.evenement_id === ev.id);
-    let statut = 'À venir';
-    let cls = 'badge-info';
+    let statut = 'À venir', cls = 'badge-info';
     if (objs.length > 0) {
       const allDone = objs.every(o => o.nombre_realise !== null);
       if (allDone) {
         const allOk = objs.every(o => (o.nombre_realise || 0) >= o.nombre_cible);
-        statut = allOk ? 'Tous objectifs atteints' : 'Objectifs partiels';
+        statut = allOk ? 'Objectifs atteints' : 'Objectifs partiels';
         cls = allOk ? 'badge-success' : 'badge-warning';
       }
     }
@@ -1326,6 +1628,141 @@ function renderObjectifsTable() {
       showToast('Objectif mis à jour', 'success');
     });
   });
+}
+
+// ============================================================
+// EXPORT EXCEL
+// ============================================================
+function exportToExcel() {
+  if (typeof XLSX === 'undefined') { showToast('Librairie Excel non chargée', 'error'); return; }
+  const wb = XLSX.utils.book_new();
+  const dateStr = new Date().toISOString().split('T')[0];
+
+  // Onglet 1 : Tâches
+  const tachesData = state.cibles.map(c => {
+    const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
+    const src = state.sources.find(s => s.id === c.source_id);
+    const dom = state.domaines.find(d => d.id === c.domaine_id);
+    const produit = state.produits.find(p => p.id === c.produit_id);
+    const col = COLONNES_V8.find(co => co.numero === getColonneCible(c));
+    const resultats = state.cibleResultats.filter(r => r.cible_id === c.id).map(r => r.resultat_libelle).join(' ; ');
+    return {
+      'ID': c.id,
+      'Produit': produit?.code || '',
+      'Description': c.description_action || c.intitule || '',
+      'Colonne': col?.libelle || '',
+      'Statut avancement': c.statut_avancement || '',
+      'Domaine': dom?.nom || '',
+      'Source': src?.nom || '',
+      'Responsable': resp ? (resp.prenom||'')+' '+(resp.nom||'') : '',
+      'Nb contacts attendus': c.nombre_contacts_attendus || 0,
+      'Nb RDV attendus': c.nombre_rdv_attendus || 0,
+      'Résultats attendus': resultats,
+      'Échéance': c.date_echeance || '',
+      'En retard': isTacheEnRetard(c) ? 'OUI' : '',
+      'Terminée': c.est_terminee ? 'OUI' : '',
+      'Date terminée': c.date_terminee || '',
+      'Période': c.periode_msi || '',
+      'Montant (€)': c.montant_estime || 0,
+      'Confiance': c.niveau_confiance || 0,
+      'Notes': c.notes || ''
+    };
+  });
+  const ws1 = XLSX.utils.json_to_sheet(tachesData);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Tâches');
+
+  // Onglet 2 : Suivi hebdo
+  const hebdoData = state.suivi.map(s => {
+    const u = state.utilisateurs.find(x => x.id === s.utilisateur_id);
+    return {
+      'Année': s.annee, 'Semaine': s.semaine,
+      'Commercial': u ? (u.prenom||'')+' '+(u.nom||'') : '',
+      'Type activité': s.type_activite, 'Nombre': s.nombre || 0
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hebdoData), 'Suivi hebdo');
+
+  // Onglet 3 : Événements
+  const eventsData = state.evenements.map(ev => {
+    const src = state.sources.find(s => s.id === ev.source_id);
+    const resp = state.utilisateurs.find(u => u.id === ev.responsable_id);
+    return {
+      'Date début': ev.date_evenement, 'Date fin': ev.date_fin || '',
+      'Type': ev.type_evenement || 'Extérieur',
+      'Intitulé': ev.quoi, 'Source': src?.nom || '',
+      'Lieu': ev.lieu_libre || '', 'Ville': ev.lieu_ville || '',
+      'Code postal': ev.lieu_code_postal || '', 'Adresse': ev.lieu_adresse || '',
+      'Responsable': resp ? (resp.prenom||'')+' '+(resp.nom||'') : '',
+      'Préparation': ev.comment_preparation || '', 'Notes': ev.notes || ''
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(eventsData), 'Événements');
+
+  // Onglet 4 : Objectifs événements
+  const objEvtData = state.evtObjectifs.map(o => {
+    const ev = state.evenements.find(e => e.id === o.evenement_id);
+    return {
+      'Événement': ev?.quoi || '', 'Date événement': ev?.date_evenement || '',
+      'Type objectif': o.type_objectif, 'Description': o.description || '',
+      'Cible': o.nombre_cible || 0, 'Réalisé': o.nombre_realise ?? '',
+      'Commentaire': o.commentaire || ''
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(objEvtData), 'Objectifs événements');
+
+  // Onglet 5 : Objectifs annuels/périodes
+  const objAnnData = state.objectifsAnnuels.map(o => ({
+    'Année': o.annee, 'Période': o.periode_msi,
+    'CA cible (€)': o.ca_cible || 0, 'Nombre cible': o.msi_cible || 0,
+    'Commentaire': o.commentaire || ''
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(objAnnData), 'Objectifs périodes');
+
+  // Onglet 6 : 6 KPI
+  const kpiData = state.kpiObjectifs.map(k => {
+    const p = state.produits.find(x => x.id === k.produit_id);
+    return {
+      'Produit': p?.code || '', 'Période': k.periode_msi,
+      'KPI': k.type_kpi, 'Valeur cible': k.valeur_cible || 0,
+      'Commentaire': k.commentaire || ''
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kpiData), 'KPI cibles');
+
+  // Onglet 7 : Objectifs contacts par source
+  const objSrcData = state.objectifs.map(o => {
+    const s = state.sources.find(x => x.id === o.source_id);
+    return {
+      'Source': s?.nom || '', 'Période': o.periode,
+      'Cible contacts': o.cible_contacts || 0
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(objSrcData), 'Objectifs sources');
+
+  // Onglet 8 : Sources et checklists
+  const checklistData = state.checklist.map(c => {
+    const s = state.sources.find(x => x.id === c.source_id);
+    return {
+      'Source': s?.nom || '', 'Action': c.action,
+      'Responsable': c.responsable_type || '', 'Délai': c.delai || '',
+      'Outils': c.outils || ''
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(checklistData), 'Checklists');
+
+  // Onglet 9 : Jalons MSI
+  const jalonsData = state.jalons.map(j => {
+    const p = state.produits.find(x => x.id === j.produit_id);
+    return {
+      'Produit': p?.code || '', 'Titre': j.titre,
+      'Type': j.type_jalon, 'Date début': j.date_debut,
+      'Date fin': j.date_fin || '', 'Description': j.description || ''
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(jalonsData), 'Jalons MSI');
+
+  XLSX.writeFile(wb, `prospection_icam_${dateStr}.xlsx`);
+  showToast('Export Excel généré', 'success');
 }
 
 init();

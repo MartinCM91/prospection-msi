@@ -32,7 +32,6 @@
     <button class="tab" data-tab="hebdo">Suivi hebdo</button>
     <button class="tab" data-tab="calendar">Calendrier</button>
     <button class="tab" data-tab="events">Événements</button>
-    <button class="tab" data-tab="revue">Revue</button>
     <button class="tab" data-tab="objectifs">Objectifs</button>
     <button class="tab tab-aide" data-tab="aide">Aide</button>
   </nav>
@@ -48,7 +47,7 @@
       <div class="kpi-highlight">
         <div class="kpi-card-big" id="kpi-card-rdv"><div class="kpi-card-big-label">RDV qualifiés cette semaine</div><div class="kpi-card-big-value" id="kpi-rdv-sem">—</div><div class="kpi-card-big-objectif" id="kpi-rdv-sem-obj">Objectif 4 / semaine</div><div class="kpi-card-big-status" id="kpi-rdv-status"></div></div>
         <div class="kpi-card-big" id="kpi-card-prop"><div class="kpi-card-big-label">Offres rédigées ce mois</div><div class="kpi-card-big-value" id="kpi-prop-mois">—</div><div class="kpi-card-big-objectif" id="kpi-prop-mois-obj">Objectif 8 / mois</div><div class="kpi-card-big-status" id="kpi-prop-status"></div></div>
-        <div class="kpi-card-big" id="kpi-card-contrats"><div class="kpi-card-big-label">Contrats signés (année)</div><div class="kpi-card-big-value" id="kpi-contrats">—</div><div class="kpi-card-big-objectif" id="kpi-contrats-obj">Objectif annuel</div><div class="kpi-card-big-status" id="kpi-contrats-status"></div></div>
+        <div class="kpi-card-big" id="kpi-card-contrats"><div class="kpi-card-big-label">Contrats signés</div><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><select id="kpi-periode-filtre" style="padding:4px 8px;border:1px solid #D3D1C7;border-radius:4px;font-size:12px;"><option value="">Toutes périodes</option><option value="2526B">2526B</option><option value="2627A" selected>2627A</option><option value="2627B">2627B</option><option value="2728A">2728A</option></select></div><div class="kpi-card-big-value" id="kpi-contrats">—</div><div class="kpi-card-big-objectif" id="kpi-contrats-obj">Objectif période</div><div class="kpi-card-big-status" id="kpi-contrats-status"></div></div>
       </div>
       <h3>6 KPI détaillés</h3>
       <div class="kpi-grid kpi-grid-6">
@@ -57,6 +56,7 @@
         <div class="kpi-card kpi-color-orange"><div class="kpi-label">Offres rédigées</div><div class="kpi-value" id="kpi6-propales">—</div><div class="kpi-objectif" id="kpi6-propales-obj"></div><div class="kpi-percent" id="kpi6-propales-pct"></div></div>
         <div class="kpi-card kpi-color-purple"><div class="kpi-label">En négociation</div><div class="kpi-value" id="kpi6-encours">—</div><div class="kpi-objectif">Colonne Avancement</div></div>
         <div class="kpi-card kpi-color-green"><div class="kpi-label">Offres signées</div><div class="kpi-value" id="kpi6-signees">—</div><div class="kpi-objectif" id="kpi6-signees-obj"></div><div class="kpi-percent" id="kpi6-signees-pct"></div></div>
+        <div class="kpi-card kpi-color-orange"><div class="kpi-label">⏳ Signées sans date</div><div class="kpi-value" id="kpi6-attente-date">—</div><div class="kpi-objectif">En attente de date signature</div></div>
         <div class="kpi-card kpi-color-red"><div class="kpi-label">Offres perdues</div><div class="kpi-value" id="kpi6-perdues">—</div><div class="kpi-objectif" id="kpi6-perdues-obj"></div></div>
       </div>
       <h3>Graphiques</h3>
@@ -121,19 +121,38 @@
         </div>
       </div>
       <h3 style="margin-top:0;">Saisie de la semaine</h3>
-      <div class="table-wrapper"><table class="data-table" id="hebdo-table"><thead><tr><th>Commercial</th><th>Appels / Contacts</th><th>RDV planifiés</th><th>RDV effectués</th><th>Offres envoyées</th><th>Total</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrapper"><table class="data-table" id="hebdo-table"><thead><tr><th>Commercial</th><th>Appels / Contacts</th><th>RDV planifiés</th><th>RDV qualifiés</th><th>Offres envoyées</th><th>Total</th></tr></thead><tbody></tbody></table></div>
       <h3>Tâches ouvertes à T0 vs T+1</h3>
       <p class="hint">Tâches avec échéance cette semaine ou avant, encore ouvertes.</p>
       <div class="table-wrapper"><table class="data-table" id="hebdo-taches-table"><thead><tr><th>Description</th><th>Responsable</th><th>Colonne</th><th>Échéance</th><th>Statut S+1</th></tr></thead><tbody></tbody></table></div>
       <h3>Graphiques d'évolution</h3>
       <div class="charts-grid">
-        <div class="chart-card"><div class="chart-title">Évolution RDV sur 12 semaines</div><div class="chart-wrapper"><canvas id="chart-evol-rdv"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Évolution RDV qualifiés sur 12 semaines</div><div class="chart-wrapper"><canvas id="chart-evol-rdv"></canvas></div></div>
         <div class="chart-card"><div class="chart-title">Évolution Offres sur 12 semaines</div><div class="chart-wrapper"><canvas id="chart-evol-prop"></canvas></div></div>
       </div>
       <h3>Comparaison par commercial (cumul année)</h3>
       <div class="chart-card-full"><div class="chart-wrapper" style="height:280px;"><canvas id="chart-compar-comm"></canvas></div></div>
       <h3>Récapitulatif mensuel (4 dernières semaines)</h3>
-      <div class="table-wrapper"><table class="data-table" id="hebdo-recap-table"><thead><tr><th>Commercial</th><th>Appels/Contacts</th><th>RDV planifiés</th><th>RDV effectués</th><th>Offres</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrapper"><table class="data-table" id="hebdo-recap-table"><thead><tr><th>Commercial</th><th>Appels/Contacts</th><th>RDV planifiés</th><th>RDV qualifiés</th><th>Offres</th></tr></thead><tbody></tbody></table></div>
+
+      <!-- === REVUE (fusionnée ici) === -->
+      <div style="margin-top:32px;padding-top:24px;border-top:3px solid #1F3864;">
+        <div class="view-header">
+          <h2 style="margin-bottom:0;">Revue — <span id="produit-revue-label"></span></h2>
+          <div class="filter-bar">
+            <label>Type</label>
+            <select id="revue-type">
+              <option value="mensuel">Mensuel</option>
+              <option value="trimestriel">Trimestriel</option>
+              <option value="periode_msi">Période MSI</option>
+            </select>
+            <label>Période</label>
+            <select id="revue-value"></select>
+          </div>
+        </div>
+        <p class="hint">Rétrospective : contrats signés/perdus par date de signature, taux de conversion, comparaison vs période précédente.</p>
+        <div id="revue-content"></div>
+      </div>
     </section>
 
     <!-- ====== CALENDRIER ====== -->
@@ -164,25 +183,6 @@
     <section id="view-events" class="view">
       <div class="view-header"><h2>Tous les événements</h2><button class="btn-primary" id="btn-add-event">+ Nouvel événement</button></div>
       <div class="table-wrapper"><table class="data-table" id="events-table"><thead><tr><th>Dates</th><th>Type</th><th>Action</th><th>Source</th><th>Lieu</th><th>Responsable</th><th>Statut</th><th></th></tr></thead><tbody></tbody></table></div>
-    </section>
-
-    <!-- ====== REVUE (NOUVEAU) ====== -->
-    <section id="view-revue" class="view">
-      <div class="view-header">
-        <h2>Revue — <span id="produit-revue-label"></span></h2>
-        <div class="filter-bar">
-          <label>Type</label>
-          <select id="revue-type">
-            <option value="mensuel">Mensuel</option>
-            <option value="trimestriel">Trimestriel</option>
-            <option value="periode_msi">Période MSI</option>
-          </select>
-          <label>Période</label>
-          <select id="revue-value"></select>
-        </div>
-      </div>
-      <p class="hint">Rétrospective complète pour les revues mensuelles. Comparaison vs période précédente (mensuel et trimestriel).</p>
-      <div id="revue-content"></div>
     </section>
 
     <!-- ====== OBJECTIFS ====== -->
@@ -216,11 +216,10 @@
         <div><h2 style="margin-bottom:4px;">Aide et mode d'emploi</h2><p class="hint" style="margin:0;">Documentation complète de l'outil de prospection commerciale ICAM.</p></div>
       </div>
       <div class="aide-block"><h3>1. Choix de produit</h3><p>À la connexion, choisissez MSI ou Formation LEAN. Changeable via le sélecteur en haut à droite. Toutes les données sont filtrées par produit.</p></div>
-      <div class="aide-block"><h3>2. Tableau de tâches — 5 colonnes</h3><p><strong>1. Leads</strong> → <strong>2. Phoning</strong> → <strong>3. RDV Qualification du besoin</strong> → <strong>4. Rédaction de l'offre</strong> → <strong>5. Avancement</strong> (Négociation/Signé/Perdu).</p><p>Chaque colonne a ses propres champs : en Phoning c'est "Nb contacts + Nb RDV attendus", en Qualification c'est "Nb besoins identifiés + Nb besoins retenus", en Rédaction c'est "Nb propositions réalisées + Nb retenues", en Avancement c'est "Statut + Montant + Date signature".</p><p><strong>Glisser-déposer</strong> : quand vous déplacez une carte vers une autre colonne, la modale s'ouvre automatiquement pour remplir les champs de la nouvelle étape. <strong>Case ☐</strong> : cochez pour marquer une tâche terminée (elle devient grisée et disparaît du tableau sauf si vous activez le filtre "Terminées"). <strong>Tâches en retard</strong> : bordure rouge et ⚠️ si l'échéance est dépassée. <strong>Sans échéance</strong> : fond jaune pour vous alerter.</p><p><strong>Filtres avancés</strong> : Année + Mois + Semaine + Période MSI + Responsable. Boutons rapides "Cette semaine" et "Ce mois" pour filtrer en un clic.</p></div>
-      <div class="aide-block"><h3>3. Suivi hebdomadaire</h3><p>Saisie par commercial des 4 activités : Appels/Contacts, <strong>RDV planifiés</strong> (prévu mais pas encore fait), RDV effectués, Offres envoyées. Section "Tâches ouvertes T0 vs T+1" : identifie les tâches qui devaient être faites cette semaine et restent ouvertes.</p></div>
+      <div class="aide-block"><h3>2. Tableau de tâches — 5 colonnes</h3><p><strong>1. Leads</strong> (Nb contacts) → <strong>2. Phoning</strong> (Nb appels + Nb RDV à obtenir) → <strong>3. RDV Qualification du besoin</strong> (Nb besoins identifiés + retenus) → <strong>4. Rédaction de l'offre</strong> (Nb propositions réalisées + retenues) → <strong>5. Avancement</strong> (Négociation/Signé/Perdu + Montant + Date signature + Période MSI).</p><p><strong>Période MSI</strong> : chaque contrat signé est rattaché à une période MSI (2526B, 2627A...) pour savoir à quelle période il compte, même s'il est signé pendant une autre. Les contrats signés sans date de signature apparaissent comme "⏳ En attente de date".</p><p><strong>Glisser-déposer</strong> : quand vous déplacez une carte vers une autre colonne, la modale s'ouvre automatiquement pour remplir les champs de la nouvelle étape.</p></div>
+      <div class="aide-block"><h3>3. Suivi hebdomadaire + Revue</h3><p>Saisie par commercial des 4 activités : Appels/Contacts, <strong>RDV planifiés</strong>, <strong>RDV qualifiés</strong>, Offres envoyées. Section "Tâches ouvertes T0 vs T+1" : identifie les tâches qui devaient être faites cette semaine. <strong>En dessous : Revue</strong> (mensuel/trimestriel/période MSI) avec KPI, comparaison vs période précédente, et taux de conversion.</p></div>
       <div class="aide-block"><h3>4. Calendrier</h3><p>Calendrier annuel par source avec icône 📋 pour les checklists de préparatifs. <strong>Ligne 🏁 Jalons MSI</strong> : icônes spécifiques (📊 Revue, 🎯 Intervention client, 🎤 Soutenance, 📦 Livrable, 👥 Réunion). <strong>Zoom mensuel</strong> : cliquez sur 🔍 à côté du mois pour voir le calendrier détaillé jour par jour + liste chronologique. <strong>Plein écran</strong> : bouton ⛶. <strong>+ Source</strong> : créez une nouvelle source directement depuis le calendrier.</p></div>
-      <div class="aide-block"><h3>5. Revue</h3><p>Onglet de rétrospective mensuelle, trimestrielle ou par période MSI. Affiche les KPI (contacts, RDV planifiés, RDV effectués, offres, signés, perdus) avec <strong>comparaison vs période précédente</strong> (↑↓ en %) et <strong>taux de conversion</strong> (Contacts→RDV→Offre→Signature).</p></div>
-      <div class="aide-block"><h3>6. Export Excel</h3><p>Bouton "📊 Export Excel" en haut à droite. Génère un fichier .xlsx avec 9 onglets : Tâches, Suivi hebdo, Événements, Objectifs événements, Objectifs périodes, KPI, Objectifs sources, Checklists, Jalons MSI. Chaque onglet a un en-tête clair et les données sont structurées.</p></div>
+      <div class="aide-block"><h3>5. Export Excel</h3><p>Bouton "📊 Export Excel" en haut à droite. Génère un fichier .xlsx avec 9 onglets : Tâches, Suivi hebdo, Événements, Objectifs événements, Objectifs périodes, KPI, Objectifs sources, Checklists, Jalons MSI. Chaque onglet a un en-tête clair et les données sont structurées.</p></div>
       <div class="aide-block"><h3>7. Objectifs et remise à zéro</h3><p>Objectifs par période (CA + nombre), 6 KPI cibles, objectifs contacts par source. Chaque section a un bouton 🔄 RAZ pour remettre les valeurs cibles à 0 (les données réalisées sont conservées).</p></div>
       <div class="aide-block"><h3>8. Maintenance technique</h3><p>Code source : GitHub. Base de données : Supabase (PostgreSQL). Hébergement : Netlify (déploiement automatique à chaque push). Pour modifier le code : éditez les fichiers sur GitHub, attendez 30 secondes, puis rechargez avec Ctrl+F5.</p></div>
     </section>
@@ -248,11 +247,18 @@
         </div>
 
         <!-- Champs dynamiques selon la colonne -->
-        <div class="form-section" id="section-col-1-2">
-          <h4 class="form-section-title">Objectifs (Leads / Phoning)</h4>
+        <div class="form-section" id="section-col-1">
+          <h4 class="form-section-title">Leads (colonne 1)</h4>
+          <div class="form-row">
+            <div class="form-field"><label>Nb contacts</label><input type="number" id="cible-nb-contacts" min="0" value="0"></div>
+          </div>
+        </div>
+
+        <div class="form-section" id="section-col-2" style="display:none;">
+          <h4 class="form-section-title">Phoning (colonne 2)</h4>
           <div class="form-row form-row-2">
-            <div class="form-field"><label>Nb contacts attendus</label><input type="number" id="cible-nb-contacts" min="0" value="0"></div>
-            <div class="form-field"><label>Nb RDV attendus</label><input type="number" id="cible-nb-rdv" min="0" value="0"></div>
+            <div class="form-field"><label>Nb appels à faire</label><input type="number" id="cible-nb-appels" min="0" value="0"></div>
+            <div class="form-field"><label>Nb RDV à obtenir</label><input type="number" id="cible-nb-rdv" min="0" value="0"></div>
           </div>
         </div>
 

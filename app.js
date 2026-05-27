@@ -2,7 +2,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_COURT = ['Janv','Févr','Mars','Avr','Mai','Juin','Juil','Août','Sept','Oct','Nov','Déc'];
-const ACTIVITES = ['Appels / Contacts','RDV planifiés','RDV effectués','Propositions envoyées'];
+const ACTIVITES = ['Appels / Contacts','RDV planifiés','RDV qualifiés','Propositions envoyées'];
 
 // Icônes par type de jalon MSI (pour calendrier annuel)
 const JALON_ICONS = {
@@ -336,6 +336,7 @@ function setupResets() {
 
 function setupExport() {
   document.getElementById('btn-export-excel').addEventListener('click', exportToExcel);
+  document.getElementById('kpi-periode-filtre')?.addEventListener('change', () => renderDashboard());
 }
 
 function setupFullscreen() {
@@ -520,6 +521,7 @@ function openModalCible(prefill = {}) {
     document.getElementById('cible-description').value = prefill.description_action || prefill.intitule || '';
     document.getElementById('cible-nb-contacts').value = prefill.nombre_contacts_attendus || 0;
     document.getElementById('cible-nb-rdv').value = prefill.nombre_rdv_attendus || 0;
+    if (document.getElementById('cible-nb-appels')) document.getElementById('cible-nb-appels').value = prefill.nb_appels || 0;
     // Champs col 3
     const el3a = document.getElementById('cible-nb-besoins-id');
     const el3b = document.getElementById('cible-nb-besoins-ret');
@@ -553,16 +555,16 @@ function openModalCible(prefill = {}) {
 }
 
 function updateColonneSections(colNum) {
-  // Afficher/masquer les sections selon la colonne
-  const s12 = document.getElementById('section-col-1-2');
+  const s1 = document.getElementById('section-col-1');
+  const s2 = document.getElementById('section-col-2');
   const s3 = document.getElementById('section-col-3');
   const s4 = document.getElementById('section-col-4');
   const s5 = document.getElementById('section-avancement');
-  if (s12) s12.style.display = (colNum <= 2) ? 'flex' : 'none';
+  if (s1) s1.style.display = (colNum === 1) ? 'flex' : 'none';
+  if (s2) s2.style.display = (colNum === 2) ? 'flex' : 'none';
   if (s3) s3.style.display = (colNum === 3) ? 'flex' : 'none';
   if (s4) s4.style.display = (colNum === 4) ? 'flex' : 'none';
   if (s5) s5.style.display = (colNum >= 5) ? 'flex' : 'none';
-  // Mettre à jour l'étape cachée
   document.getElementById('cible-etape').value = colNum;
 }
 
@@ -652,6 +654,7 @@ async function saveCible(e) {
     source_id: parseInt(document.getElementById('cible-source').value) || null,
     nombre_contacts_attendus: parseInt(document.getElementById('cible-nb-contacts').value) || 0,
     nombre_rdv_attendus: parseInt(document.getElementById('cible-nb-rdv').value) || 0,
+    nb_appels: parseInt(document.getElementById('cible-nb-appels')?.value) || 0,
     date_echeance: document.getElementById('cible-echeance').value || null,
     etape: colNum,
     periode_msi: document.getElementById('cible-periode').value || null,
@@ -1219,10 +1222,19 @@ function renderDashboard() {
   const ciblesSignees = cibles.filter(c => c.statut_avancement === 'Signé');
   const ciblesPerdues = cibles.filter(c => c.statut_avancement === 'Perdu');
   const ciblesEnNegociation = cibles.filter(c => c.statut_avancement === 'Négociation' && !c.est_terminee);
-  const caSigne = ciblesSignees.reduce((s,c) => s + (c.montant_estime || 0), 0);
+  const ciblesSigneesAvecDate = ciblesSignees.filter(c => c.date_signature);
+  const ciblesSigneesSansDate = ciblesSignees.filter(c => !c.date_signature);
+
+  // Filtre période MSI pour le KPI contrats signés
+  const periodeFiltre = document.getElementById('kpi-periode-filtre')?.value || '';
+  const ciblesSigneesPeriode = periodeFiltre ? ciblesSignees.filter(c => c.periode_msi === periodeFiltre) : ciblesSignees;
+  const ciblesSigneesAvecDatePeriode = ciblesSigneesPeriode.filter(c => c.date_signature);
+  const ciblesSigneesSansDatePeriode = ciblesSigneesPeriode.filter(c => !c.date_signature);
+
+  const caSigne = ciblesSigneesPeriode.reduce((s,c) => s + (c.montant_estime || 0), 0);
   const caEnCours = ciblesEnAvancement.filter(c => !['Signé','Perdu'].includes(c.statut_avancement)).reduce((s,c) => s + ((c.montant_estime || 0) * (c.niveau_confiance || 0)), 0);
   const atteinteCA = caObjectif > 0 ? Math.round((caSigne / caObjectif) * 100) : 0;
-  const rdvSem = state.suivi.filter(s => s.type_activite === 'RDV effectués' && s.annee === state.annee && s.semaine === state.hebdo_semaine).reduce((sum,s) => sum + (s.nombre||0), 0);
+  const rdvSem = state.suivi.filter(s => s.type_activite === 'RDV qualifiés' && s.annee === state.annee && s.semaine === state.hebdo_semaine).reduce((sum,s) => sum + (s.nombre||0), 0);
   const propMois = state.suivi.filter(s => s.type_activite === 'Propositions envoyées' && s.annee === state.annee && s.semaine >= state.hebdo_semaine-3 && s.semaine <= state.hebdo_semaine).reduce((sum,s) => sum + (s.nombre||0), 0);
 
   // 3 KPI prioritaires
@@ -1242,14 +1254,14 @@ function renderDashboard() {
   document.getElementById('kpi-prop-status').className = 'kpi-card-big-status ' + (propMois >= state.kpi_prop_cible ? 'ok' : 'alert');
   document.getElementById('kpi-prop-status').textContent = propMois >= state.kpi_prop_cible ? 'Atteint' : 'Retard';
 
-  document.getElementById('kpi-contrats').textContent = ciblesSignees.length;
-  document.getElementById('kpi-contrats-obj').textContent = 'Objectif ' + msiObjectif + ' annuel';
+  document.getElementById('kpi-contrats').textContent = ciblesSigneesAvecDatePeriode.length + (ciblesSigneesSansDatePeriode.length > 0 ? ' + ' + ciblesSigneesSansDatePeriode.length + ' ⏳' : '');
+  document.getElementById('kpi-contrats-obj').textContent = periodeFiltre ? 'Période ' + periodeFiltre + ' — Objectif ' + msiObjectif : 'Toutes périodes — Objectif ' + msiObjectif;
   const cardContrats = document.getElementById('kpi-card-contrats');
-  const contratsOk = msiObjectif > 0 && ciblesSignees.length >= msiObjectif;
+  const contratsOk = msiObjectif > 0 && ciblesSigneesPeriode.length >= msiObjectif;
   cardContrats.className = 'kpi-card-big ' + (contratsOk ? 'kpi-card-ok' : '');
   document.getElementById('kpi-contrats').className = 'kpi-card-big-value ' + (contratsOk ? 'kpi-ok' : '');
   const statusContrats = document.getElementById('kpi-contrats-status');
-  if (msiObjectif > 0) { statusContrats.className = 'kpi-card-big-status ' + (contratsOk ? 'ok' : 'alert'); statusContrats.textContent = contratsOk ? 'Atteint' : Math.round((ciblesSignees.length/msiObjectif)*100) + ' %'; }
+  if (msiObjectif > 0) { statusContrats.className = 'kpi-card-big-status ' + (contratsOk ? 'ok' : 'alert'); statusContrats.textContent = contratsOk ? 'Atteint' : Math.round((ciblesSigneesPeriode.length/msiObjectif)*100) + ' %'; }
   else statusContrats.textContent = '';
 
   // 6 KPI avec chiffres ET pourcentages
@@ -1257,7 +1269,7 @@ function renderDashboard() {
   if (state.produitActif) {
     state.kpiObjectifs.filter(k => k.produit_id === state.produitActif.id && k.periode_msi === 'ANNUEL').forEach(k => kpiCibles[k.type_kpi] = k.valeur_cible);
   }
-  const rdvAnnee = state.suivi.filter(s => s.annee === state.annee && s.type_activite === 'RDV effectués').reduce((sum,s) => sum + (s.nombre||0), 0);
+  const rdvAnnee = state.suivi.filter(s => s.annee === state.annee && s.type_activite === 'RDV qualifiés').reduce((sum,s) => sum + (s.nombre||0), 0);
   const contactsAnnee = state.suivi.filter(s => s.annee === state.annee && s.type_activite === 'Appels / Contacts').reduce((sum,s) => sum + (s.nombre||0), 0);
   const propAnnee = state.suivi.filter(s => s.annee === state.annee && s.type_activite === 'Propositions envoyées').reduce((sum,s) => sum + (s.nombre||0), 0);
 
@@ -1277,7 +1289,9 @@ function renderDashboard() {
   setKpi('kpi6-rdv', 'kpi6-rdv-obj', 'kpi6-rdv-pct', rdvAnnee, kpiCibles.rdv_qualifies || 0);
   setKpi('kpi6-propales', 'kpi6-propales-obj', 'kpi6-propales-pct', propAnnee, kpiCibles.propales_redigees || 0);
   document.getElementById('kpi6-encours').textContent = ciblesEnNegociation.length;
-  setKpi('kpi6-signees', 'kpi6-signees-obj', 'kpi6-signees-pct', ciblesSignees.length, kpiCibles.offres_signees || 0);
+  setKpi('kpi6-signees', 'kpi6-signees-obj', 'kpi6-signees-pct', ciblesSigneesPeriode.length, kpiCibles.offres_signees || 0);
+  const elAttenteDate = document.getElementById('kpi6-attente-date');
+  if (elAttenteDate) elAttenteDate.textContent = ciblesSigneesSansDate.length;
   document.getElementById('kpi6-perdues').textContent = ciblesPerdues.length;
   document.getElementById('kpi6-perdues-obj').textContent = kpiCibles.offres_perdues ? 'Cible max ' + kpiCibles.offres_perdues : '';
 
@@ -1340,7 +1354,7 @@ function renderDashboard() {
   else state.utilisateurs.forEach(u => {
     const cs = cibles.filter(c => c.responsable_id === u.id);
     const csOuvertes = cs.filter(c => !c.est_terminee).length;
-    const rdv = state.suivi.filter(s => s.utilisateur_id === u.id && s.type_activite === 'RDV effectués').reduce((sum,s) => sum + (s.nombre||0), 0);
+    const rdv = state.suivi.filter(s => s.utilisateur_id === u.id && s.type_activite === 'RDV qualifiés').reduce((sum,s) => sum + (s.nombre||0), 0);
     const prop = state.suivi.filter(s => s.utilisateur_id === u.id && s.type_activite === 'Propositions envoyées').reduce((sum,s) => sum + (s.nombre||0), 0);
     const signe = cs.filter(c => c.statut_avancement === 'Signé').reduce((s,c) => s+(c.montant_estime||0), 0);
     const tr = document.createElement('tr');
@@ -1390,7 +1404,7 @@ function renderDashboardCharts() {
       const w = state.hebdo_semaine - i;
       if (w < 1) continue;
       semaines.push('S' + w);
-      valeurs.push(state.suivi.filter(s => s.annee === state.annee && s.semaine === w && s.type_activite === 'RDV effectués').reduce((sum,s) => sum + (s.nombre||0), 0));
+      valeurs.push(state.suivi.filter(s => s.annee === state.annee && s.semaine === w && s.type_activite === 'RDV qualifiés').reduce((sum,s) => sum + (s.nombre||0), 0));
       objectifs.push(state.kpi_rdv_cible);
     }
     state.charts.rdvSem = new Chart(ctx1, {
@@ -1445,7 +1459,7 @@ function renderHebdoCharts() {
     const w = state.hebdo_semaine - i;
     if (w < 1) continue;
     semaines.push('S' + w);
-    rdvData.push(state.suivi.filter(s => s.annee === state.hebdo_annee && s.semaine === w && s.type_activite === 'RDV effectués').reduce((sum,s) => sum + (s.nombre||0), 0));
+    rdvData.push(state.suivi.filter(s => s.annee === state.hebdo_annee && s.semaine === w && s.type_activite === 'RDV qualifiés').reduce((sum,s) => sum + (s.nombre||0), 0));
     propData.push(state.suivi.filter(s => s.annee === state.hebdo_annee && s.semaine === w && s.type_activite === 'Propositions envoyées').reduce((sum,s) => sum + (s.nombre||0), 0));
   }
   if (state.charts.evolRdv) { state.charts.evolRdv.destroy(); delete state.charts.evolRdv; }
@@ -1453,7 +1467,7 @@ function renderHebdoCharts() {
   if (ctx1) state.charts.evolRdv = new Chart(ctx1, {
     type: 'line',
     data: { labels: semaines, datasets: [
-      { label: 'RDV effectués', data: rdvData, borderColor: '#1F3864', backgroundColor: 'rgba(31,56,100,0.1)', tension: 0.3, fill: true },
+      { label: 'RDV qualifiés', data: rdvData, borderColor: '#1F3864', backgroundColor: 'rgba(31,56,100,0.1)', tension: 0.3, fill: true },
       { label: 'Objectif', data: semaines.map(() => state.kpi_rdv_cible), borderColor: '#A32D2D', borderDash: [5,5], pointRadius: 0, fill: false }
     ]},
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
@@ -1469,14 +1483,14 @@ function renderHebdoCharts() {
   const ctx3 = document.getElementById('chart-compar-comm');
   if (ctx3) {
     const labels = state.utilisateurs.map(u => (u.prenom||'')+' '+(u.nom||''));
-    const rdvAll = state.utilisateurs.map(u => state.suivi.filter(s => s.utilisateur_id === u.id && s.annee === state.hebdo_annee && s.type_activite === 'RDV effectués').reduce((sum,s) => sum + (s.nombre||0), 0));
+    const rdvAll = state.utilisateurs.map(u => state.suivi.filter(s => s.utilisateur_id === u.id && s.annee === state.hebdo_annee && s.type_activite === 'RDV qualifiés').reduce((sum,s) => sum + (s.nombre||0), 0));
     const propAll = state.utilisateurs.map(u => state.suivi.filter(s => s.utilisateur_id === u.id && s.annee === state.hebdo_annee && s.type_activite === 'Propositions envoyées').reduce((sum,s) => sum + (s.nombre||0), 0));
     const appAll = state.utilisateurs.map(u => state.suivi.filter(s => s.utilisateur_id === u.id && s.annee === state.hebdo_annee && s.type_activite === 'Appels / Contacts').reduce((sum,s) => sum + (s.nombre||0), 0));
     state.charts.comparComm = new Chart(ctx3, {
       type: 'bar',
       data: { labels, datasets: [
         { label: 'Appels / Contacts', data: appAll, backgroundColor: '#85B7EB', borderRadius: 4 },
-        { label: 'RDV effectués', data: rdvAll, backgroundColor: '#1F3864', borderRadius: 4 },
+        { label: 'RDV qualifiés', data: rdvAll, backgroundColor: '#1F3864', borderRadius: 4 },
         { label: 'Offres envoyées', data: propAll, backgroundColor: '#5DCAA5', borderRadius: 4 }
       ]},
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
@@ -1528,7 +1542,7 @@ function renderHebdo() {
       cumul[act] = state.suivi.filter(s => s.utilisateur_id === u.id && s.annee === state.hebdo_annee && s.semaine >= startWeek && s.semaine <= state.hebdo_semaine && s.type_activite === act).reduce((sum,s) => sum + (s.nombre||0), 0);
     });
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><strong>${u.prenom||''} ${u.nom||''}</strong></td><td>${cumul['Appels / Contacts']}</td><td>${cumul['RDV planifiés'] || 0}</td><td>${cumul['RDV effectués']}</td><td>${cumul['Propositions envoyées']}</td>`;
+    tr.innerHTML = `<td><strong>${u.prenom||''} ${u.nom||''}</strong></td><td>${cumul['Appels / Contacts']}</td><td>${cumul['RDV planifiés'] || 0}</td><td>${cumul['RDV qualifiés']}</td><td>${cumul['Propositions envoyées']}</td>`;
     tbody2.appendChild(tr);
   });
   renderHebdoCharts();
@@ -2059,7 +2073,7 @@ function renderRevueContent() {
 
   const nbContacts = suiviPeriode.filter(s => s.type_activite === 'Appels / Contacts').reduce((sum,s) => sum + (s.nombre||0), 0);
   const nbRdvPlanifies = suiviPeriode.filter(s => s.type_activite === 'RDV planifiés').reduce((sum,s) => sum + (s.nombre||0), 0);
-  const nbRdvEffectues = suiviPeriode.filter(s => s.type_activite === 'RDV effectués').reduce((sum,s) => sum + (s.nombre||0), 0);
+  const nbRdvEffectues = suiviPeriode.filter(s => s.type_activite === 'RDV qualifiés').reduce((sum,s) => sum + (s.nombre||0), 0);
   const nbOffres = suiviPeriode.filter(s => s.type_activite === 'Propositions envoyées').reduce((sum,s) => sum + (s.nombre||0), 0);
 
   // Cibles signées/perdues filtrées
@@ -2069,9 +2083,15 @@ function renderRevueContent() {
     if (!d) return false;
     return d >= dateMin && d <= dateMax;
   });
-  const nbSigne = ciblesFiltrees.filter(c => c.statut_avancement === 'Signé').length;
+  const ciblesSigneesRevue = ciblesFiltrees.filter(c => c.statut_avancement === 'Signé');
+  const nbSigne = ciblesSigneesRevue.length;
+  const nbSigneAvecDate = ciblesSigneesRevue.filter(c => c.date_signature).length;
+  const nbSigneSansDate = ciblesSigneesRevue.filter(c => !c.date_signature).length;
   const nbPerdu = ciblesFiltrees.filter(c => c.statut_avancement === 'Perdu').length;
-  const caSigne = ciblesFiltrees.filter(c => c.statut_avancement === 'Signé').reduce((s,c) => s + (c.montant_estime||0), 0);
+  const caSigne = ciblesSigneesRevue.reduce((s,c) => s + (c.montant_estime||0), 0);
+
+  // Aussi compter les cibles signées toutes périodes mais sans date de signature
+  const toutesSigneesSansDate = cibles.filter(c => c.statut_avancement === 'Signé' && !c.date_signature).length;
 
   // Calcul de la période précédente pour comparaison (si mensuel/trimestriel)
   let prevSuivi = [];
@@ -2104,7 +2124,7 @@ function renderRevueContent() {
 
   const prevContacts = prevSuivi.filter(s => s.type_activite === 'Appels / Contacts').reduce((sum,s) => sum + (s.nombre||0), 0);
   const prevRdvPlanifies = prevSuivi.filter(s => s.type_activite === 'RDV planifiés').reduce((sum,s) => sum + (s.nombre||0), 0);
-  const prevRdvEffectues = prevSuivi.filter(s => s.type_activite === 'RDV effectués').reduce((sum,s) => sum + (s.nombre||0), 0);
+  const prevRdvEffectues = prevSuivi.filter(s => s.type_activite === 'RDV qualifiés').reduce((sum,s) => sum + (s.nombre||0), 0);
   const prevOffres = prevSuivi.filter(s => s.type_activite === 'Propositions envoyées').reduce((sum,s) => sum + (s.nombre||0), 0);
   const prevSigne = prevCibles.filter(c => c.statut_avancement === 'Signé').length;
   const prevPerdu = prevCibles.filter(c => c.statut_avancement === 'Perdu').length;
@@ -2133,7 +2153,7 @@ function renderRevueContent() {
         ${type !== 'periode_msi' ? `<div class="revue-kpi-evol">vs précédent : ${prevRdvPlanifies} ${evol(nbRdvPlanifies, prevRdvPlanifies)}</div>` : ''}
       </div>
       <div class="revue-kpi-card">
-        <div class="revue-kpi-label">RDV effectués (qualifiés)</div>
+        <div class="revue-kpi-label">RDV qualifiés</div>
         <div class="revue-kpi-value">${nbRdvEffectues}</div>
         ${type !== 'periode_msi' ? `<div class="revue-kpi-evol">vs précédent : ${prevRdvEffectues} ${evol(nbRdvEffectues, prevRdvEffectues)}</div>` : ''}
       </div>
@@ -2144,7 +2164,7 @@ function renderRevueContent() {
       </div>
       <div class="revue-kpi-card revue-kpi-positif">
         <div class="revue-kpi-label">Contrats signés</div>
-        <div class="revue-kpi-value">${nbSigne}</div>
+        <div class="revue-kpi-value">${nbSigne}${nbSigneSansDate > 0 ? ` <span style="font-size:14px;color:#BA7517;">(${nbSigneSansDate} ⏳ sans date)</span>` : ''}</div>
         ${type !== 'periode_msi' ? `<div class="revue-kpi-evol">vs précédent : ${prevSigne} ${evol(nbSigne, prevSigne)}</div>` : ''}
       </div>
       <div class="revue-kpi-card revue-kpi-negatif">
@@ -2231,7 +2251,8 @@ function exportToExcel() {
       'Responsable': resp ? `${resp.prenom||''} ${resp.nom||''}`.trim() : '',
       'Source': src?.nom || '',
       'Nb contacts attendus': c.nombre_contacts_attendus || 0,
-      'Nb RDV attendus': c.nombre_rdv_attendus || 0,
+      'Nb appels à faire': c.nb_appels || 0,
+      'Nb RDV à obtenir': c.nombre_rdv_attendus || 0,
       'Nb besoins identifiés': c.nb_besoins_id || '',
       'Nb besoins retenus': c.nb_besoins_ret || '',
       'Nb propositions réalisées': c.nb_prop_real || '',

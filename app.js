@@ -2,7 +2,17 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MOIS_COURT = ['Janv','Févr','Mars','Avr','Mai','Juin','Juil','Août','Sept','Oct','Nov','Déc'];
-const ACTIVITES = ['Appels / Contacts','RDV effectués','Propositions envoyées'];
+const ACTIVITES = ['Appels / Contacts','RDV planifiés','RDV effectués','Propositions envoyées'];
+
+// Icônes par type de jalon MSI (pour calendrier annuel)
+const JALON_ICONS = {
+  'Revue projet':        '📊',
+  'Intervention client': '🎯',
+  'Soutenance':          '🎤',
+  'Livrable':            '📦',
+  'Réunion':             '👥',
+  'Autre':               '📍'
+};
 const COULEURS_CHART = ['#1F3864','#5DCAA5','#7F77DD','#F0997B','#FAC775','#ED93B1','#B4B2A9','#85B7EB'];
 
 // 5 colonnes v8
@@ -41,7 +51,9 @@ let state = {
   cal_annee: new Date().getFullYear(),
   obj_annee: new Date().getFullYear(),
   plan_periode: '', plan_responsable: '', plan_show_done: false,
+  plan_annee: '', plan_mois: '', plan_semaine: '',
   cal_filter_groupe: '',
+  cal_zoom_month: null, // null = vue annuelle, 0-11 = mois zoomé
   kpi_rdv_cible: 4, kpi_prop_cible: 8,
   draggedCibleId: null,
   expandedParents: new Set(),
@@ -180,7 +192,7 @@ function setupProduitSwitcher() {
 
 function updateProduitLabels() {
   if (!state.produitActif) return;
-  document.querySelectorAll('#produit-actif-label, #produit-tableau-label, #obj-produit-label').forEach(el => el.textContent = state.produitActif.code);
+  document.querySelectorAll('#produit-actif-label, #produit-tableau-label, #obj-produit-label, #produit-revue-label').forEach(el => el.textContent = state.produitActif.code);
 }
 
 function setupYearSelectors() {
@@ -203,6 +215,74 @@ function setupFilters() {
   });
   planResp.addEventListener('change', e => { state.plan_responsable = e.target.value; renderKanban(); });
   document.getElementById('plan-show-done').addEventListener('change', e => { state.plan_show_done = e.target.checked; renderKanban(); });
+
+  // Filtre Année
+  const annSel = document.getElementById('plan-annee');
+  if (annSel) {
+    annSel.innerHTML = '<option value="">Toutes</option>';
+    const cy = new Date().getFullYear();
+    for (let y = cy - 1; y <= cy + 2; y++) {
+      const o = document.createElement('option');
+      o.value = y; o.textContent = y;
+      annSel.appendChild(o);
+    }
+    annSel.addEventListener('change', e => { state.plan_annee = e.target.value; renderKanban(); });
+  }
+
+  // Filtre Mois
+  const moisSel = document.getElementById('plan-mois');
+  if (moisSel) {
+    moisSel.innerHTML = '<option value="">Tous</option>';
+    MOIS.forEach((m, i) => {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = m;
+      moisSel.appendChild(o);
+    });
+    moisSel.addEventListener('change', e => { state.plan_mois = e.target.value; renderKanban(); });
+  }
+
+  // Filtre Semaine
+  const semSel = document.getElementById('plan-semaine');
+  if (semSel) {
+    semSel.innerHTML = '<option value="">Toutes</option>';
+    for (let w = 1; w <= 53; w++) {
+      const o = document.createElement('option');
+      o.value = w; o.textContent = 'S' + w;
+      semSel.appendChild(o);
+    }
+    semSel.addEventListener('change', e => { state.plan_semaine = e.target.value; renderKanban(); });
+  }
+
+  // Boutons rapides
+  const btnSem = document.getElementById('btn-filter-this-week');
+  if (btnSem) btnSem.addEventListener('click', () => {
+    state.plan_annee = new Date().getFullYear().toString();
+    state.plan_semaine = getCurrentWeek().toString();
+    state.plan_mois = '';
+    if (annSel) annSel.value = state.plan_annee;
+    if (semSel) semSel.value = state.plan_semaine;
+    if (moisSel) moisSel.value = '';
+    renderKanban();
+  });
+  const btnMois = document.getElementById('btn-filter-this-month');
+  if (btnMois) btnMois.addEventListener('click', () => {
+    state.plan_annee = new Date().getFullYear().toString();
+    state.plan_mois = new Date().getMonth().toString();
+    state.plan_semaine = '';
+    if (annSel) annSel.value = state.plan_annee;
+    if (moisSel) moisSel.value = state.plan_mois;
+    if (semSel) semSel.value = '';
+    renderKanban();
+  });
+  const btnClear = document.getElementById('btn-filter-clear');
+  if (btnClear) btnClear.addEventListener('click', () => {
+    state.plan_annee = ''; state.plan_mois = ''; state.plan_semaine = '';
+    if (annSel) annSel.value = '';
+    if (moisSel) moisSel.value = '';
+    if (semSel) semSel.value = '';
+    renderKanban();
+  });
+
   document.getElementById('cal-filter-groupe').addEventListener('change', e => { state.cal_filter_groupe = e.target.value; renderCalendar(); });
 }
 
@@ -388,15 +468,26 @@ function openModalCible(prefill = {}) {
   document.getElementById('modal-cible-title').textContent = prefill.id ? 'Modifier la tâche' : 'Nouvelle tâche';
   document.getElementById('btn-delete-cible').classList.toggle('hidden', !prefill.id);
 
+  // Select Colonne/Étape : les 5 colonnes
   const domSel = document.getElementById('cible-domaine');
   domSel.innerHTML = '';
-  state.domaines.forEach(d => {
+  COLONNES_V8.forEach(col => {
     const o = document.createElement('option');
-    o.value = d.id;
-    o.textContent = d.numero + '. ' + d.nom;
-    if (prefill.domaine_id === d.id) o.selected = true;
+    o.value = col.numero;
+    o.textContent = col.numero + '. ' + col.libelle;
     domSel.appendChild(o);
   });
+
+  // Déterminer la colonne actuelle
+  let currentCol = 1;
+  if (prefill.id) {
+    currentCol = getColonneCible(prefill);
+  } else if (prefill._forceCol) {
+    currentCol = prefill._forceCol;
+  }
+  domSel.value = currentCol;
+
+  domSel.addEventListener('change', () => updateColonneSections(parseInt(domSel.value)));
 
   const respSel = document.getElementById('cible-responsable');
   respSel.innerHTML = '<option value="">—</option>';
@@ -416,43 +507,82 @@ function openModalCible(prefill = {}) {
     srcSel.appendChild(o);
   });
 
-  // Résultats attendus : pré-remplir si modification
+  // Résultats attendus
   state.tempResultats = [];
   if (prefill.id) {
     const existingResultats = state.cibleResultats.filter(r => r.cible_id === prefill.id);
     existingResultats.forEach(r => state.tempResultats.push(r.resultat_libelle));
-    // Migration depuis l'ancien champ resultat_attendu si vide
-    if (existingResultats.length === 0 && prefill.resultat_attendu) {
-      state.tempResultats.push(prefill.resultat_attendu);
-    }
+    if (existingResultats.length === 0 && prefill.resultat_attendu) state.tempResultats.push(prefill.resultat_attendu);
   }
   renderResultatsTags();
-  updateResultatsSelect(prefill.domaine_id);
 
   if (prefill.id) {
     document.getElementById('cible-description').value = prefill.description_action || prefill.intitule || '';
     document.getElementById('cible-nb-contacts').value = prefill.nombre_contacts_attendus || 0;
     document.getElementById('cible-nb-rdv').value = prefill.nombre_rdv_attendus || 0;
+    // Champs col 3
+    const el3a = document.getElementById('cible-nb-besoins-id');
+    const el3b = document.getElementById('cible-nb-besoins-ret');
+    if (el3a) el3a.value = prefill.nb_besoins_id || 0;
+    if (el3b) el3b.value = prefill.nb_besoins_ret || 0;
+    // Champs col 4
+    const el4a = document.getElementById('cible-nb-prop-real');
+    const el4b = document.getElementById('cible-nb-prop-ret');
+    if (el4a) el4a.value = prefill.nb_prop_real || 0;
+    if (el4b) el4b.value = prefill.nb_prop_ret || 0;
+
     document.getElementById('cible-echeance').value = prefill.date_echeance || '';
     document.getElementById('cible-echeance-alert').style.display = prefill.date_echeance ? 'none' : 'inline';
-    document.getElementById('cible-periode').value = prefill.periode_msi || '';
     document.getElementById('cible-montant').value = prefill.montant_estime || 0;
     document.getElementById('cible-confiance').value = prefill.niveau_confiance ?? 0.5;
     document.getElementById('cible-notes').value = prefill.notes || '';
     document.getElementById('cible-terminee').checked = prefill.est_terminee || false;
-    // Statut migration
+    document.getElementById('cible-date-signature').value = prefill.date_signature || '';
+    document.getElementById('cible-periode').value = prefill.periode_msi || '';
     let statut = prefill.statut_avancement || 'Négociation';
     if (['Communication','Financement','Paiement','CRM'].includes(statut)) statut = 'Négociation';
     document.getElementById('cible-statut-avancement').value = statut;
-    document.getElementById('cible-etape').value = prefill.etape || 1;
-    document.getElementById('section-avancement').style.display = getColonneCible(prefill) === 5 ? 'flex' : 'none';
+    document.getElementById('cible-etape').value = prefill.etape || currentCol;
   } else {
-    document.getElementById('cible-etape').value = 1;
+    document.getElementById('cible-etape').value = currentCol;
     document.getElementById('cible-echeance-alert').style.display = 'inline';
-    document.getElementById('section-avancement').style.display = 'none';
   }
+
+  updateColonneSections(currentCol);
   document.getElementById('modal-cible').classList.remove('hidden');
 }
+
+function updateColonneSections(colNum) {
+  // Afficher/masquer les sections selon la colonne
+  const s12 = document.getElementById('section-col-1-2');
+  const s3 = document.getElementById('section-col-3');
+  const s4 = document.getElementById('section-col-4');
+  const s5 = document.getElementById('section-avancement');
+  if (s12) s12.style.display = (colNum <= 2) ? 'flex' : 'none';
+  if (s3) s3.style.display = (colNum === 3) ? 'flex' : 'none';
+  if (s4) s4.style.display = (colNum === 4) ? 'flex' : 'none';
+  if (s5) s5.style.display = (colNum >= 5) ? 'flex' : 'none';
+  // Mettre à jour l'étape cachée
+  document.getElementById('cible-etape').value = colNum;
+}
+
+  const respSel = document.getElementById('cible-responsable');
+  respSel.innerHTML = '<option value="">—</option>';
+  state.utilisateurs.forEach(u => {
+    const o = document.createElement('option');
+    o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
+    if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) o.selected = true;
+    respSel.appendChild(o);
+  });
+
+  const srcSel = document.getElementById('cible-source');
+  srcSel.innerHTML = '<option value="">—</option>';
+  state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.id; o.textContent = (s.parent_id ? '  └ ' : '') + s.nom;
+    if (prefill.source_id === s.id) o.selected = true;
+    srcSel.appendChild(o);
+  });
 
 function updateResultatsSelect(domId) {
   const sel = document.getElementById('cible-resultat-select');
@@ -504,12 +634,13 @@ document.addEventListener('change', e => {
 async function saveCible(e) {
   e.preventDefault();
   const id = document.getElementById('cible-id').value;
-  const domaineId = parseInt(document.getElementById('cible-domaine').value) || null;
+  const colNum = parseInt(document.getElementById('cible-domaine').value) || 1;
 
-  let etape = parseInt(document.getElementById('cible-etape').value) || 1;
-  if (domaineId) {
-    const dom = state.domaines.find(d => d.id === domaineId);
-    if (dom) etape = dom.numero;
+  // Trouver le domaine_id correspondant au numéro de colonne (si <= 3)
+  let domaineId = null;
+  if (colNum <= 3) {
+    const dom = state.domaines.find(d => d.numero === colNum);
+    if (dom) domaineId = dom.id;
   }
 
   const estTerminee = document.getElementById('cible-terminee').checked;
@@ -522,18 +653,20 @@ async function saveCible(e) {
     nombre_contacts_attendus: parseInt(document.getElementById('cible-nb-contacts').value) || 0,
     nombre_rdv_attendus: parseInt(document.getElementById('cible-nb-rdv').value) || 0,
     date_echeance: document.getElementById('cible-echeance').value || null,
-    etape: etape,
+    etape: colNum,
     periode_msi: document.getElementById('cible-periode').value || null,
     montant_estime: parseFloat(document.getElementById('cible-montant').value) || 0,
     niveau_confiance: parseFloat(document.getElementById('cible-confiance').value) || 0.5,
     notes: document.getElementById('cible-notes').value || null,
-    statut_avancement: etape === 5 ? document.getElementById('cible-statut-avancement').value : null,
+    statut_avancement: colNum >= 5 ? document.getElementById('cible-statut-avancement').value : null,
     est_terminee: estTerminee,
     date_terminee: estTerminee ? new Date().toISOString() : null,
     produit_id: state.produitActif?.id || null,
     updated_at: new Date().toISOString()
   };
-  if (data.statut_avancement === 'Signé') data.date_signature = new Date().toISOString().split('T')[0];
+  if (data.statut_avancement === 'Signé') {
+    data.date_signature = document.getElementById('cible-date-signature').value || new Date().toISOString().split('T')[0];
+  }
 
   const { data: result, error } = id 
     ? await sb.from('cibles_msi').update(data).eq('id', id).select() 
@@ -897,6 +1030,7 @@ function renderAll() {
   renderObjectifsAnnuels();
   renderKpi6Table();
   renderObjectifsTable();
+  renderRevue();
 }
 
 function getCiblesProduitActif() {
@@ -911,6 +1045,26 @@ function renderKanban() {
   if (state.plan_periode) cibles = cibles.filter(c => c.periode_msi === state.plan_periode);
   if (state.plan_responsable) cibles = cibles.filter(c => c.responsable_id === state.plan_responsable);
   if (!state.plan_show_done) cibles = cibles.filter(c => !c.est_terminee);
+
+  // Filtres année/mois/semaine sur l'échéance
+  if (state.plan_annee) {
+    cibles = cibles.filter(c => {
+      if (!c.date_echeance) return false;
+      return new Date(c.date_echeance).getFullYear() === parseInt(state.plan_annee);
+    });
+  }
+  if (state.plan_mois !== '' && state.plan_mois !== null) {
+    cibles = cibles.filter(c => {
+      if (!c.date_echeance) return false;
+      return new Date(c.date_echeance).getMonth() === parseInt(state.plan_mois);
+    });
+  }
+  if (state.plan_semaine) {
+    cibles = cibles.filter(c => {
+      if (!c.date_echeance) return false;
+      return dateToWeek(c.date_echeance) === parseInt(state.plan_semaine);
+    });
+  }
 
   COLONNES_V8.forEach(col => {
     const div = document.createElement('div');
@@ -939,6 +1093,7 @@ function renderKanban() {
       if (!cibleId) return;
       const cible = state.cibles.find(c => c.id === cibleId);
       if (getColonneCible(cible) === col.numero) return;
+      // Mettre à jour la colonne en BDD
       const newData = { updated_at: new Date().toISOString() };
       if (col.numero <= 3) {
         const dom = state.domaines.find(d => d.numero === col.numero);
@@ -952,8 +1107,13 @@ function renderKanban() {
         }
       }
       await sb.from('cibles_msi').update(newData).eq('id', cibleId);
-      showToast(`Tâche déplacée vers "${col.libelle}"`, 'success');
-      await loadData(); renderAll();
+      await loadData();
+      // Ouvrir la modale avec la bonne colonne pré-sélectionnée
+      const updatedCible = state.cibles.find(c => c.id === cibleId);
+      if (updatedCible) {
+        openModalCible({ ...updatedCible, _forceCol: col.numero });
+      }
+      renderAll();
     });
 
     if (cs.length === 0) {
@@ -1368,7 +1528,7 @@ function renderHebdo() {
       cumul[act] = state.suivi.filter(s => s.utilisateur_id === u.id && s.annee === state.hebdo_annee && s.semaine >= startWeek && s.semaine <= state.hebdo_semaine && s.type_activite === act).reduce((sum,s) => sum + (s.nombre||0), 0);
     });
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><strong>${u.prenom||''} ${u.nom||''}</strong></td><td>${cumul['Appels / Contacts']}</td><td>${cumul['RDV effectués']}</td><td>${cumul['Propositions envoyées']}</td>`;
+    tr.innerHTML = `<td><strong>${u.prenom||''} ${u.nom||''}</strong></td><td>${cumul['Appels / Contacts']}</td><td>${cumul['RDV planifiés'] || 0}</td><td>${cumul['RDV effectués']}</td><td>${cumul['Propositions envoyées']}</td>`;
     tbody2.appendChild(tr);
   });
   renderHebdoCharts();
@@ -1410,6 +1570,11 @@ function renderTachesT0T1() {
 }
 
 function renderCalendar() {
+  // Si on est en mode zoom mois, afficher la vue mensuelle
+  if (state.cal_zoom_month !== null) {
+    renderMonthZoom();
+    return;
+  }
   const container = document.getElementById('calendar-grid');
   container.innerHTML = '';
   let sources = state.sources.filter(s => s.groupe !== 'OUTIL');
@@ -1426,8 +1591,36 @@ function renderCalendar() {
 
   const header = document.createElement('div');
   header.className = 'cal-row cal-header';
-  header.innerHTML = '<div class="cal-cell cal-source-header">Source</div>' + MOIS_COURT.map(m => `<div class="cal-cell cal-month-header">${m}</div>`).join('');
+  header.innerHTML = '<div class="cal-cell cal-source-header">Source</div>' + MOIS_COURT.map((m, i) => `<div class="cal-cell cal-month-header cal-month-clickable" data-zoom-month="${i}" title="Zoom sur ${MOIS[i]}">${m} 🔍</div>`).join('');
   container.appendChild(header);
+
+  // Ligne des jalons MSI (sous le header)
+  const jalonsAnnee = state.jalons.filter(j => {
+    if (state.produitActif && j.produit_id && j.produit_id !== state.produitActif.id) return false;
+    return new Date(j.date_debut).getFullYear() === state.cal_annee;
+  });
+  if (jalonsAnnee.length > 0) {
+    const jalonsRow = document.createElement('div');
+    jalonsRow.className = 'cal-row cal-jalons-row';
+    let jhtml = '<div class="cal-cell cal-source-label" style="font-weight:600;color:#1F3864;background:#F0F4F9;">🏁 Jalons MSI</div>';
+    for (let m = 0; m < 12; m++) {
+      const jsMois = jalonsAnnee.filter(j => new Date(j.date_debut).getMonth() === m);
+      if (jsMois.length === 0) {
+        jhtml += '<div class="cal-cell" style="background:transparent;"></div>';
+      } else {
+        const tooltip = jsMois.map(j => `${j.titre} (${new Date(j.date_debut).toLocaleDateString('fr-FR')})`).join('\n');
+        let icons = '';
+        jsMois.forEach(j => {
+          const icon = JALON_ICONS[j.type_jalon] || '📍';
+          icons += `<span class="cal-jalon-icon" style="color:${j.couleur || '#A32D2D'};" title="${j.titre} - ${new Date(j.date_debut).toLocaleDateString('fr-FR')}" data-jalon-id="${j.id}">${icon}</span>`;
+        });
+        jhtml += `<div class="cal-cell cal-jalons-cell" data-zoom-month="${m}" title="${tooltip}">${icons}</div>`;
+      }
+    }
+    jalonsRow.innerHTML = jhtml;
+    container.appendChild(jalonsRow);
+  }
+
   const evAnnee = state.evenements.filter(e => new Date(e.date_evenement).getFullYear() === state.cal_annee);
 
   orderedSources.forEach(src => {
@@ -1466,6 +1659,21 @@ function renderCalendar() {
   container.querySelectorAll('[data-checklist-source]').forEach(el => {
     el.addEventListener('click', e => { e.stopPropagation(); openChecklistModal(parseInt(el.dataset.checklistSource)); });
   });
+  container.querySelectorAll('[data-zoom-month]').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.closest('[data-jalon-id]')) return; // si clic sur icône jalon, on la gère ailleurs
+      const m = parseInt(el.dataset.zoomMonth);
+      state.cal_zoom_month = m;
+      renderCalendar();
+    });
+  });
+  container.querySelectorAll('[data-jalon-id]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const j = state.jalons.find(x => x.id === parseInt(el.dataset.jalonId));
+      if (j) openModalJalon(j);
+    });
+  });
   container.querySelectorAll('.cal-empty[data-source]').forEach(cell => {
     cell.addEventListener('click', () => {
       const srcId = parseInt(cell.dataset.source);
@@ -1480,6 +1688,135 @@ function renderCalendar() {
       const ids = JSON.parse(cell.dataset.evs);
       if (ids.length === 1) openModal(state.evenements.find(e => e.id === ids[0]));
       else document.querySelector('.tab[data-tab="events"]').click();
+    });
+  });
+}
+
+// === VUE ZOOM MENSUEL ===
+function renderMonthZoom() {
+  const container = document.getElementById('calendar-grid');
+  const month = state.cal_zoom_month;
+  const annee = state.cal_annee;
+  const moisLabel = MOIS[month];
+
+  // Récupérer événements et jalons du mois
+  const evsMois = state.evenements.filter(e => {
+    const d = new Date(e.date_evenement);
+    return d.getFullYear() === annee && d.getMonth() === month;
+  });
+  const jalonsMois = state.jalons.filter(j => {
+    if (state.produitActif && j.produit_id && j.produit_id !== state.produitActif.id) return false;
+    const d = new Date(j.date_debut);
+    return d.getFullYear() === annee && d.getMonth() === month;
+  });
+
+  // Calculer la grille (premier jour, nombre de jours)
+  const firstDay = new Date(annee, month, 1);
+  const lastDay = new Date(annee, month + 1, 0);
+  const nbJours = lastDay.getDate();
+  let dayOfWeek = firstDay.getDay(); // 0 = dim, 1 = lun...
+  if (dayOfWeek === 0) dayOfWeek = 7; // pour avoir lundi=1, dim=7
+  const offset = dayOfWeek - 1; // nombre de cases vides avant le 1er
+
+  let html = `
+    <div class="month-zoom-header">
+      <button class="btn-secondary" id="btn-back-cal">← Retour vue annuelle</button>
+      <h3 style="margin:0;color:#1F3864;">${moisLabel} ${annee}</h3>
+      <div></div>
+    </div>
+    <div class="month-zoom-grid">
+      <div class="month-day-header">Lun</div>
+      <div class="month-day-header">Mar</div>
+      <div class="month-day-header">Mer</div>
+      <div class="month-day-header">Jeu</div>
+      <div class="month-day-header">Ven</div>
+      <div class="month-day-header">Sam</div>
+      <div class="month-day-header">Dim</div>
+  `;
+
+  // Cases vides avant le 1er
+  for (let i = 0; i < offset; i++) html += '<div class="month-day-cell month-day-empty"></div>';
+
+  // Jours du mois
+  for (let day = 1; day <= nbJours; day++) {
+    const dateStr = `${annee}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const evsJour = evsMois.filter(e => {
+      const ds = e.date_evenement;
+      const df = e.date_fin || e.date_evenement;
+      return dateStr >= ds && dateStr <= df;
+    });
+    const jalonsJour = jalonsMois.filter(j => {
+      const ds = j.date_debut;
+      const df = j.date_fin || j.date_debut;
+      return dateStr >= ds && dateStr <= df;
+    });
+    const isToday = dateStr === new Date().toISOString().split('T')[0];
+    let dayContent = `<div class="month-day-num${isToday ? ' today' : ''}">${day}</div>`;
+    if (evsJour.length > 0) {
+      evsJour.forEach(e => {
+        const src = state.sources.find(s => s.id === e.source_id);
+        dayContent += `<div class="month-day-event" data-evt-id="${e.id}" title="${e.quoi}">${src ? src.nom.substring(0,12) : ''}${e.quoi ? ' · '+e.quoi.substring(0,20) : ''}</div>`;
+      });
+    }
+    if (jalonsJour.length > 0) {
+      jalonsJour.forEach(j => {
+        const icon = JALON_ICONS[j.type_jalon] || '📍';
+        dayContent += `<div class="month-day-jalon" style="border-left-color:${j.couleur || '#A32D2D'};" data-jalon-id="${j.id}" title="${j.titre}">${icon} ${j.titre.substring(0,18)}</div>`;
+      });
+    }
+    html += `<div class="month-day-cell${isToday ? ' is-today' : ''}" data-date="${dateStr}">${dayContent}</div>`;
+  }
+
+  html += '</div>';
+
+  // Liste chronologique sous le calendrier
+  html += '<h3 style="margin-top:24px;">Liste chronologique</h3><div class="month-list">';
+  const allItems = [
+    ...evsMois.map(e => ({ ...e, _type: 'event', _date: e.date_evenement })),
+    ...jalonsMois.map(j => ({ ...j, _type: 'jalon', _date: j.date_debut }))
+  ].sort((a, b) => a._date.localeCompare(b._date));
+
+  if (allItems.length === 0) {
+    html += '<p class="empty">Aucun événement ni jalon ce mois-ci.</p>';
+  } else {
+    allItems.forEach(item => {
+      if (item._type === 'event') {
+        const src = state.sources.find(s => s.id === item.source_id);
+        let datesStr = new Date(item.date_evenement).toLocaleDateString('fr-FR');
+        if (item.date_fin && item.date_fin !== item.date_evenement) datesStr += ' → ' + new Date(item.date_fin).toLocaleDateString('fr-FR');
+        html += `<div class="month-list-item" data-evt-id="${item.id}"><div class="month-list-date">${datesStr}</div><div class="month-list-content"><div class="month-list-titre">${item.quoi}</div><div class="month-list-meta">${src?.nom || '—'} · ${item.type_evenement || 'Extérieur'}${item.lieu_libre ? ' · '+item.lieu_libre : (item.lieu_ville ? ' · '+item.lieu_ville : '')}</div></div></div>`;
+      } else {
+        const icon = JALON_ICONS[item.type_jalon] || '📍';
+        let datesStr = new Date(item.date_debut).toLocaleDateString('fr-FR');
+        if (item.date_fin && item.date_fin !== item.date_debut) datesStr += ' → ' + new Date(item.date_fin).toLocaleDateString('fr-FR');
+        html += `<div class="month-list-item month-list-jalon" data-jalon-id="${item.id}" style="border-left-color:${item.couleur || '#A32D2D'};"><div class="month-list-date">${datesStr}</div><div class="month-list-content"><div class="month-list-titre">${icon} ${item.titre}</div><div class="month-list-meta">${item.type_jalon}${item.description ? ' · '+item.description : ''}</div></div></div>`;
+      }
+    });
+  }
+  html += '</div>';
+
+  container.innerHTML = html;
+
+  document.getElementById('btn-back-cal').addEventListener('click', () => {
+    state.cal_zoom_month = null;
+    renderCalendar();
+  });
+  container.querySelectorAll('[data-evt-id]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      openModal(state.evenements.find(x => x.id === parseInt(el.dataset.evtId)));
+    });
+  });
+  container.querySelectorAll('[data-jalon-id]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      openModalJalon(state.jalons.find(x => x.id === parseInt(el.dataset.jalonId)));
+    });
+  });
+  container.querySelectorAll('.month-day-cell[data-date]').forEach(cell => {
+    cell.addEventListener('click', e => {
+      if (e.target.closest('[data-evt-id]') || e.target.closest('[data-jalon-id]')) return;
+      openModal({ date_evenement: cell.dataset.date });
     });
   });
 }
@@ -1631,59 +1968,331 @@ function renderObjectifsTable() {
 }
 
 // ============================================================
-// EXPORT EXCEL
+// REVUE (mensuelle / trimestrielle / par période MSI)
 // ============================================================
+function renderRevue() {
+  const container = document.getElementById('revue-content');
+  if (!container) return;
+
+  const typeSelect = document.getElementById('revue-type');
+  const valueSelect = document.getElementById('revue-value');
+  if (!typeSelect.dataset.setup) {
+    typeSelect.addEventListener('change', () => { setupRevueValueSelect(); renderRevueContent(); });
+    valueSelect.addEventListener('change', renderRevueContent);
+    typeSelect.dataset.setup = '1';
+  }
+  setupRevueValueSelect();
+  renderRevueContent();
+}
+
+function setupRevueValueSelect() {
+  const typeSelect = document.getElementById('revue-type');
+  const valueSelect = document.getElementById('revue-value');
+  const type = typeSelect.value;
+  valueSelect.innerHTML = '';
+  const now = new Date();
+  const annee = now.getFullYear();
+
+  if (type === 'mensuel') {
+    for (let y = annee - 1; y <= annee; y++) {
+      for (let m = 0; m < 12; m++) {
+        const o = document.createElement('option');
+        o.value = y + '-' + m;
+        o.textContent = MOIS[m] + ' ' + y;
+        // Mois précédent par défaut
+        const prev = new Date(annee, now.getMonth() - 1, 1);
+        if (y === prev.getFullYear() && m === prev.getMonth()) o.selected = true;
+        valueSelect.appendChild(o);
+      }
+    }
+  } else if (type === 'trimestriel') {
+    for (let y = annee - 1; y <= annee; y++) {
+      for (let q = 1; q <= 4; q++) {
+        const o = document.createElement('option');
+        o.value = y + '-T' + q;
+        o.textContent = 'T' + q + ' ' + y;
+        if (y === annee && q === Math.floor(now.getMonth() / 3) + 1) o.selected = true;
+        valueSelect.appendChild(o);
+      }
+    }
+  } else if (type === 'periode_msi') {
+    const periodes = [...new Set(state.objectifsAnnuels.map(o => o.periode_msi))].filter(p => p && p !== 'ANNUEL');
+    periodes.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p;
+      o.textContent = p;
+      valueSelect.appendChild(o);
+    });
+  }
+}
+
+function renderRevueContent() {
+  const container = document.getElementById('revue-content');
+  const type = document.getElementById('revue-type').value;
+  const value = document.getElementById('revue-value').value;
+  if (!value) { container.innerHTML = '<p class="empty">Sélectionnez une période.</p>'; return; }
+
+  let weekFilter, dateMin, dateMax, label;
+  const cibles = getCiblesProduitActif();
+
+  if (type === 'mensuel') {
+    const [y, m] = value.split('-').map(Number);
+    dateMin = new Date(y, m, 1);
+    dateMax = new Date(y, m + 1, 0, 23, 59, 59);
+    label = MOIS[m] + ' ' + y;
+    weekFilter = s => s.annee === y && s.semaine >= dateToWeek(dateMin.toISOString().split('T')[0]) && s.semaine <= dateToWeek(dateMax.toISOString().split('T')[0]);
+  } else if (type === 'trimestriel') {
+    const [y, qStr] = value.split('-T');
+    const annee = parseInt(y);
+    const q = parseInt(qStr);
+    dateMin = new Date(annee, (q - 1) * 3, 1);
+    dateMax = new Date(annee, q * 3, 0, 23, 59, 59);
+    label = 'T' + q + ' ' + annee;
+    weekFilter = s => s.annee === annee && s.semaine >= dateToWeek(dateMin.toISOString().split('T')[0]) && s.semaine <= dateToWeek(dateMax.toISOString().split('T')[0]);
+  } else if (type === 'periode_msi') {
+    label = 'Période ' + value;
+    weekFilter = s => true; // pas de filtre semaine pour période MSI
+  }
+
+  // KPI calculés
+  const suiviPeriode = type === 'periode_msi' ? state.suivi : state.suivi.filter(weekFilter);
+
+  const nbContacts = suiviPeriode.filter(s => s.type_activite === 'Appels / Contacts').reduce((sum,s) => sum + (s.nombre||0), 0);
+  const nbRdvPlanifies = suiviPeriode.filter(s => s.type_activite === 'RDV planifiés').reduce((sum,s) => sum + (s.nombre||0), 0);
+  const nbRdvEffectues = suiviPeriode.filter(s => s.type_activite === 'RDV effectués').reduce((sum,s) => sum + (s.nombre||0), 0);
+  const nbOffres = suiviPeriode.filter(s => s.type_activite === 'Propositions envoyées').reduce((sum,s) => sum + (s.nombre||0), 0);
+
+  // Cibles signées/perdues filtrées
+  const ciblesFiltrees = cibles.filter(c => {
+    if (type === 'periode_msi') return c.periode_msi === value;
+    const d = c.date_signature ? new Date(c.date_signature) : (c.date_terminee ? new Date(c.date_terminee) : null);
+    if (!d) return false;
+    return d >= dateMin && d <= dateMax;
+  });
+  const nbSigne = ciblesFiltrees.filter(c => c.statut_avancement === 'Signé').length;
+  const nbPerdu = ciblesFiltrees.filter(c => c.statut_avancement === 'Perdu').length;
+  const caSigne = ciblesFiltrees.filter(c => c.statut_avancement === 'Signé').reduce((s,c) => s + (c.montant_estime||0), 0);
+
+  // Calcul de la période précédente pour comparaison (si mensuel/trimestriel)
+  let prevSuivi = [];
+  let prevCibles = [];
+  if (type === 'mensuel') {
+    const [y, m] = value.split('-').map(Number);
+    const prevMin = new Date(y, m - 1, 1);
+    const prevMax = new Date(y, m, 0, 23, 59, 59);
+    prevSuivi = state.suivi.filter(s => s.annee === prevMin.getFullYear() && s.semaine >= dateToWeek(prevMin.toISOString().split('T')[0]) && s.semaine <= dateToWeek(prevMax.toISOString().split('T')[0]));
+    prevCibles = cibles.filter(c => {
+      const d = c.date_signature ? new Date(c.date_signature) : null;
+      if (!d) return false;
+      return d >= prevMin && d <= prevMax;
+    });
+  } else if (type === 'trimestriel') {
+    const [y, qStr] = value.split('-T');
+    const annee = parseInt(y);
+    const q = parseInt(qStr);
+    const prevQ = q === 1 ? 4 : q - 1;
+    const prevAnnee = q === 1 ? annee - 1 : annee;
+    const prevMin = new Date(prevAnnee, (prevQ - 1) * 3, 1);
+    const prevMax = new Date(prevAnnee, prevQ * 3, 0, 23, 59, 59);
+    prevSuivi = state.suivi.filter(s => s.annee === prevAnnee && s.semaine >= dateToWeek(prevMin.toISOString().split('T')[0]) && s.semaine <= dateToWeek(prevMax.toISOString().split('T')[0]));
+    prevCibles = cibles.filter(c => {
+      const d = c.date_signature ? new Date(c.date_signature) : null;
+      if (!d) return false;
+      return d >= prevMin && d <= prevMax;
+    });
+  }
+
+  const prevContacts = prevSuivi.filter(s => s.type_activite === 'Appels / Contacts').reduce((sum,s) => sum + (s.nombre||0), 0);
+  const prevRdvPlanifies = prevSuivi.filter(s => s.type_activite === 'RDV planifiés').reduce((sum,s) => sum + (s.nombre||0), 0);
+  const prevRdvEffectues = prevSuivi.filter(s => s.type_activite === 'RDV effectués').reduce((sum,s) => sum + (s.nombre||0), 0);
+  const prevOffres = prevSuivi.filter(s => s.type_activite === 'Propositions envoyées').reduce((sum,s) => sum + (s.nombre||0), 0);
+  const prevSigne = prevCibles.filter(c => c.statut_avancement === 'Signé').length;
+  const prevPerdu = prevCibles.filter(c => c.statut_avancement === 'Perdu').length;
+
+  function evol(now, prev) {
+    if (prev === 0 && now === 0) return '';
+    if (prev === 0) return `<span class="evol-up">+ Nouveau</span>`;
+    const diff = now - prev;
+    const pct = Math.round((diff / prev) * 100);
+    const cls = diff >= 0 ? 'evol-up' : 'evol-down';
+    const arrow = diff >= 0 ? '↑' : '↓';
+    return `<span class="${cls}">${arrow} ${pct}%</span>`;
+  }
+
+  let html = `
+    <h3 style="margin-top:0;">Rétrospective — ${label}</h3>
+    <div class="revue-kpi-grid">
+      <div class="revue-kpi-card">
+        <div class="revue-kpi-label">Appels / Contacts</div>
+        <div class="revue-kpi-value">${nbContacts}</div>
+        ${type !== 'periode_msi' ? `<div class="revue-kpi-evol">vs précédent : ${prevContacts} ${evol(nbContacts, prevContacts)}</div>` : ''}
+      </div>
+      <div class="revue-kpi-card">
+        <div class="revue-kpi-label">RDV planifiés</div>
+        <div class="revue-kpi-value">${nbRdvPlanifies}</div>
+        ${type !== 'periode_msi' ? `<div class="revue-kpi-evol">vs précédent : ${prevRdvPlanifies} ${evol(nbRdvPlanifies, prevRdvPlanifies)}</div>` : ''}
+      </div>
+      <div class="revue-kpi-card">
+        <div class="revue-kpi-label">RDV effectués (qualifiés)</div>
+        <div class="revue-kpi-value">${nbRdvEffectues}</div>
+        ${type !== 'periode_msi' ? `<div class="revue-kpi-evol">vs précédent : ${prevRdvEffectues} ${evol(nbRdvEffectues, prevRdvEffectues)}</div>` : ''}
+      </div>
+      <div class="revue-kpi-card">
+        <div class="revue-kpi-label">Offres rédigées</div>
+        <div class="revue-kpi-value">${nbOffres}</div>
+        ${type !== 'periode_msi' ? `<div class="revue-kpi-evol">vs précédent : ${prevOffres} ${evol(nbOffres, prevOffres)}</div>` : ''}
+      </div>
+      <div class="revue-kpi-card revue-kpi-positif">
+        <div class="revue-kpi-label">Contrats signés</div>
+        <div class="revue-kpi-value">${nbSigne}</div>
+        ${type !== 'periode_msi' ? `<div class="revue-kpi-evol">vs précédent : ${prevSigne} ${evol(nbSigne, prevSigne)}</div>` : ''}
+      </div>
+      <div class="revue-kpi-card revue-kpi-negatif">
+        <div class="revue-kpi-label">Contrats perdus</div>
+        <div class="revue-kpi-value">${nbPerdu}</div>
+        ${type !== 'periode_msi' ? `<div class="revue-kpi-evol">vs précédent : ${prevPerdu} ${evol(nbPerdu, prevPerdu)}</div>` : ''}
+      </div>
+      <div class="revue-kpi-card revue-kpi-financier">
+        <div class="revue-kpi-label">CA signé sur la période</div>
+        <div class="revue-kpi-value">${formatEuro(caSigne)} €</div>
+      </div>
+    </div>
+  `;
+
+  // Taux de conversion
+  const tauxConv = nbRdvEffectues > 0 ? Math.round((nbSigne / nbRdvEffectues) * 100) : 0;
+  const tauxClotureOffre = nbOffres > 0 ? Math.round((nbSigne / nbOffres) * 100) : 0;
+  const tauxContactRdv = nbContacts > 0 ? Math.round((nbRdvEffectues / nbContacts) * 100) : 0;
+  html += `
+    <h3>Taux de conversion</h3>
+    <div class="revue-conv-grid">
+      <div class="revue-conv-card"><div class="revue-conv-label">Contacts → RDV</div><div class="revue-conv-value">${tauxContactRdv}%</div></div>
+      <div class="revue-conv-card"><div class="revue-conv-label">RDV → Offre</div><div class="revue-conv-value">${nbRdvEffectues > 0 ? Math.round((nbOffres / nbRdvEffectues) * 100) : 0}%</div></div>
+      <div class="revue-conv-card"><div class="revue-conv-label">Offres → Signature</div><div class="revue-conv-value">${tauxClotureOffre}%</div></div>
+      <div class="revue-conv-card revue-conv-card-highlight"><div class="revue-conv-label">RDV → Signature</div><div class="revue-conv-value">${tauxConv}%</div></div>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
 function exportToExcel() {
   if (typeof XLSX === 'undefined') { showToast('Librairie Excel non chargée', 'error'); return; }
   const wb = XLSX.utils.book_new();
   const dateStr = new Date().toISOString().split('T')[0];
+  const prodLabel = state.produitActif?.code || 'MSI';
 
-  // Onglet 1 : Tâches
+  // Helper : largeur automatique des colonnes
+  function autoWidth(ws, data) {
+    if (!data || data.length === 0) return;
+    const keys = Object.keys(data[0]);
+    ws['!cols'] = keys.map((k, i) => {
+      let max = k.length;
+      data.forEach(row => {
+        const val = String(row[k] ?? '');
+        if (val.length > max) max = val.length;
+      });
+      return { wch: Math.min(max + 2, 50) };
+    });
+  }
+
+  // =============================================
+  // Onglet 0 : SOMMAIRE
+  // =============================================
+  const sommaireData = [
+    { 'N°': 1, 'Onglet': 'Tâches', 'Description': 'Toutes les tâches de prospection avec colonnes, statuts, montants' },
+    { 'N°': 2, 'Onglet': 'Pipeline commercial', 'Description': 'Vue synthétique du pipeline (tâches en Avancement)' },
+    { 'N°': 3, 'Onglet': 'Suivi hebdo', 'Description': 'Saisie hebdomadaire par commercial (appels, RDV, offres)' },
+    { 'N°': 4, 'Onglet': 'Événements', 'Description': 'Calendrier événementiel (salons, JPO, webinaires...)' },
+    { 'N°': 5, 'Onglet': 'Objectifs événements', 'Description': 'Objectifs par événement (contacts, RDV, offres cibles vs réalisé)' },
+    { 'N°': 6, 'Onglet': 'Objectifs périodes', 'Description': 'CA cible et nombre de contrats par période MSI' },
+    { 'N°': 7, 'Onglet': 'KPI cibles', 'Description': 'Objectifs des 6 KPI annuels' },
+    { 'N°': 8, 'Onglet': 'Objectifs sources', 'Description': 'Cible de contacts par source et période' },
+    { 'N°': 9, 'Onglet': 'Checklists', 'Description': 'Actions de préparation par source' },
+    { 'N°': 10, 'Onglet': 'Jalons MSI', 'Description': 'Jalons MSI (revues, soutenances, livrables...)' }
+  ];
+  const wsSommaire = XLSX.utils.json_to_sheet(sommaireData);
+  autoWidth(wsSommaire, sommaireData);
+  XLSX.utils.book_append_sheet(wb, wsSommaire, 'Sommaire');
+
+  // =============================================
+  // Onglet 1 : TÂCHES (toutes colonnes)
+  // =============================================
   const tachesData = state.cibles.map(c => {
     const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
     const src = state.sources.find(s => s.id === c.source_id);
-    const dom = state.domaines.find(d => d.id === c.domaine_id);
-    const produit = state.produits.find(p => p.id === c.produit_id);
     const col = COLONNES_V8.find(co => co.numero === getColonneCible(c));
     const resultats = state.cibleResultats.filter(r => r.cible_id === c.id).map(r => r.resultat_libelle).join(' ; ');
+    const produit = state.produits.find(p => p.id === c.produit_id);
     return {
-      'ID': c.id,
       'Produit': produit?.code || '',
+      'Colonne': col ? `${col.numero}. ${col.libelle}` : '',
       'Description': c.description_action || c.intitule || '',
-      'Colonne': col?.libelle || '',
-      'Statut avancement': c.statut_avancement || '',
-      'Domaine': dom?.nom || '',
+      'Responsable': resp ? `${resp.prenom||''} ${resp.nom||''}`.trim() : '',
       'Source': src?.nom || '',
-      'Responsable': resp ? (resp.prenom||'')+' '+(resp.nom||'') : '',
       'Nb contacts attendus': c.nombre_contacts_attendus || 0,
       'Nb RDV attendus': c.nombre_rdv_attendus || 0,
+      'Nb besoins identifiés': c.nb_besoins_id || '',
+      'Nb besoins retenus': c.nb_besoins_ret || '',
+      'Nb propositions réalisées': c.nb_prop_real || '',
+      'Nb propositions retenues': c.nb_prop_ret || '',
       'Résultats attendus': resultats,
-      'Échéance': c.date_echeance || '',
-      'En retard': isTacheEnRetard(c) ? 'OUI' : '',
-      'Terminée': c.est_terminee ? 'OUI' : '',
-      'Date terminée': c.date_terminee || '',
-      'Période': c.periode_msi || '',
+      'Statut avancement': c.statut_avancement || '',
       'Montant (€)': c.montant_estime || 0,
-      'Confiance': c.niveau_confiance || 0,
+      'Date signature': c.date_signature || '',
+      'Période MSI': c.periode_msi || '',
+      'Échéance': c.date_echeance || '',
+      'En retard ?': isTacheEnRetard(c) ? '⚠️ OUI' : '',
+      'Terminée ?': c.est_terminee ? '✅ OUI' : '',
+      'Date terminée': c.date_terminee ? c.date_terminee.split('T')[0] : '',
       'Notes': c.notes || ''
     };
   });
   const ws1 = XLSX.utils.json_to_sheet(tachesData);
+  autoWidth(ws1, tachesData);
   XLSX.utils.book_append_sheet(wb, ws1, 'Tâches');
 
-  // Onglet 2 : Suivi hebdo
-  const hebdoData = state.suivi.map(s => {
-    const u = state.utilisateurs.find(x => x.id === s.utilisateur_id);
+  // =============================================
+  // Onglet 2 : PIPELINE COMMERCIAL (col 5 uniquement)
+  // =============================================
+  const pipelineData = state.cibles.filter(c => getColonneCible(c) === 5).map(c => {
+    const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
+    const src = state.sources.find(s => s.id === c.source_id);
     return {
-      'Année': s.annee, 'Semaine': s.semaine,
-      'Commercial': u ? (u.prenom||'')+' '+(u.nom||'') : '',
-      'Type activité': s.type_activite, 'Nombre': s.nombre || 0
+      'Description': c.description_action || c.intitule || '',
+      'Statut': c.statut_avancement || 'Négociation',
+      'Montant (€)': c.montant_estime || 0,
+      'Responsable': resp ? `${resp.prenom||''} ${resp.nom||''}`.trim() : '',
+      'Source': src?.nom || '',
+      'Période MSI': c.periode_msi || '',
+      'Date signature': c.date_signature || '',
+      'Terminée ?': c.est_terminee ? '✅ OUI' : '',
+      'Notes': c.notes || ''
     };
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hebdoData), 'Suivi hebdo');
+  const ws2 = XLSX.utils.json_to_sheet(pipelineData);
+  autoWidth(ws2, pipelineData);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Pipeline commercial');
 
-  // Onglet 3 : Événements
-  const eventsData = state.evenements.map(ev => {
+  // =============================================
+  // Onglet 3 : SUIVI HEBDO
+  // =============================================
+  const hebdoData = state.suivi.sort((a,b) => (a.annee - b.annee) || (a.semaine - b.semaine)).map(s => {
+    const u = state.utilisateurs.find(x => x.id === s.utilisateur_id);
+    return {
+      'Année': s.annee, 'Semaine': `S${s.semaine}`,
+      'Commercial': u ? `${u.prenom||''} ${u.nom||''}`.trim() : '',
+      'Activité': s.type_activite, 'Nombre': s.nombre || 0
+    };
+  });
+  const ws3 = XLSX.utils.json_to_sheet(hebdoData);
+  autoWidth(ws3, hebdoData);
+  XLSX.utils.book_append_sheet(wb, ws3, 'Suivi hebdo');
+
+  // =============================================
+  // Onglet 4 : ÉVÉNEMENTS
+  // =============================================
+  const eventsData = state.evenements.sort((a,b) => (a.date_evenement||'').localeCompare(b.date_evenement||'')).map(ev => {
     const src = state.sources.find(s => s.id === ev.source_id);
     const resp = state.utilisateurs.find(u => u.id === ev.responsable_id);
     return {
@@ -1692,44 +2301,61 @@ function exportToExcel() {
       'Intitulé': ev.quoi, 'Source': src?.nom || '',
       'Lieu': ev.lieu_libre || '', 'Ville': ev.lieu_ville || '',
       'Code postal': ev.lieu_code_postal || '', 'Adresse': ev.lieu_adresse || '',
-      'Responsable': resp ? (resp.prenom||'')+' '+(resp.nom||'') : '',
+      'Responsable': resp ? `${resp.prenom||''} ${resp.nom||''}`.trim() : '',
       'Préparation': ev.comment_preparation || '', 'Notes': ev.notes || ''
     };
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(eventsData), 'Événements');
+  const ws4 = XLSX.utils.json_to_sheet(eventsData);
+  autoWidth(ws4, eventsData);
+  XLSX.utils.book_append_sheet(wb, ws4, 'Événements');
 
-  // Onglet 4 : Objectifs événements
+  // =============================================
+  // Onglet 5 : OBJECTIFS ÉVÉNEMENTS
+  // =============================================
   const objEvtData = state.evtObjectifs.map(o => {
     const ev = state.evenements.find(e => e.id === o.evenement_id);
     return {
-      'Événement': ev?.quoi || '', 'Date événement': ev?.date_evenement || '',
+      'Événement': ev?.quoi || '', 'Date': ev?.date_evenement || '',
       'Type objectif': o.type_objectif, 'Description': o.description || '',
       'Cible': o.nombre_cible || 0, 'Réalisé': o.nombre_realise ?? '',
+      'Atteinte %': (o.nombre_cible > 0 && o.nombre_realise != null) ? Math.round((o.nombre_realise / o.nombre_cible) * 100) + '%' : '',
       'Commentaire': o.commentaire || ''
     };
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(objEvtData), 'Objectifs événements');
+  const ws5 = XLSX.utils.json_to_sheet(objEvtData);
+  autoWidth(ws5, objEvtData);
+  XLSX.utils.book_append_sheet(wb, ws5, 'Objectifs événements');
 
-  // Onglet 5 : Objectifs annuels/périodes
+  // =============================================
+  // Onglet 6 : OBJECTIFS PÉRIODES
+  // =============================================
   const objAnnData = state.objectifsAnnuels.map(o => ({
     'Année': o.annee, 'Période': o.periode_msi,
     'CA cible (€)': o.ca_cible || 0, 'Nombre cible': o.msi_cible || 0,
     'Commentaire': o.commentaire || ''
   }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(objAnnData), 'Objectifs périodes');
+  const ws6 = XLSX.utils.json_to_sheet(objAnnData);
+  autoWidth(ws6, objAnnData);
+  XLSX.utils.book_append_sheet(wb, ws6, 'Objectifs périodes');
 
-  // Onglet 6 : 6 KPI
+  // =============================================
+  // Onglet 7 : KPI CIBLES
+  // =============================================
   const kpiData = state.kpiObjectifs.map(k => {
     const p = state.produits.find(x => x.id === k.produit_id);
     return {
       'Produit': p?.code || '', 'Période': k.periode_msi,
-      'KPI': k.type_kpi, 'Valeur cible': k.valeur_cible || 0,
+      'KPI': k.type_kpi, 'Valeur cible annuelle': k.valeur_cible || 0,
       'Commentaire': k.commentaire || ''
     };
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kpiData), 'KPI cibles');
+  const ws7 = XLSX.utils.json_to_sheet(kpiData);
+  autoWidth(ws7, kpiData);
+  XLSX.utils.book_append_sheet(wb, ws7, 'KPI cibles');
 
-  // Onglet 7 : Objectifs contacts par source
+  // =============================================
+  // Onglet 8 : OBJECTIFS SOURCES
+  // =============================================
   const objSrcData = state.objectifs.map(o => {
     const s = state.sources.find(x => x.id === o.source_id);
     return {
@@ -1737,32 +2363,45 @@ function exportToExcel() {
       'Cible contacts': o.cible_contacts || 0
     };
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(objSrcData), 'Objectifs sources');
+  const ws8 = XLSX.utils.json_to_sheet(objSrcData);
+  autoWidth(ws8, objSrcData);
+  XLSX.utils.book_append_sheet(wb, ws8, 'Objectifs sources');
 
-  // Onglet 8 : Sources et checklists
+  // =============================================
+  // Onglet 9 : CHECKLISTS
+  // =============================================
   const checklistData = state.checklist.map(c => {
     const s = state.sources.find(x => x.id === c.source_id);
     return {
-      'Source': s?.nom || '', 'Action': c.action,
+      'Source': s?.nom || '', 'N° ordre': c.ordre || '',
+      'Action': c.action,
       'Responsable': c.responsable_type || '', 'Délai': c.delai || '',
       'Outils': c.outils || ''
     };
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(checklistData), 'Checklists');
+  const ws9 = XLSX.utils.json_to_sheet(checklistData);
+  autoWidth(ws9, checklistData);
+  XLSX.utils.book_append_sheet(wb, ws9, 'Checklists');
 
-  // Onglet 9 : Jalons MSI
+  // =============================================
+  // Onglet 10 : JALONS MSI
+  // =============================================
   const jalonsData = state.jalons.map(j => {
     const p = state.produits.find(x => x.id === j.produit_id);
     return {
       'Produit': p?.code || '', 'Titre': j.titre,
-      'Type': j.type_jalon, 'Date début': j.date_debut,
+      'Type': j.type_jalon, 'Couleur': j.couleur || '',
+      'Date début': j.date_debut,
       'Date fin': j.date_fin || '', 'Description': j.description || ''
     };
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(jalonsData), 'Jalons MSI');
+  const ws10 = XLSX.utils.json_to_sheet(jalonsData);
+  autoWidth(ws10, jalonsData);
+  XLSX.utils.book_append_sheet(wb, ws10, 'Jalons MSI');
 
-  XLSX.writeFile(wb, `prospection_icam_${dateStr}.xlsx`);
-  showToast('Export Excel généré', 'success');
+  const filename = `prospection_${prodLabel}_${dateStr}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  showToast(`Export "${filename}" généré avec 11 onglets`, 'success');
 }
 
 init();

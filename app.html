@@ -41,7 +41,7 @@
     <!-- ====== DASHBOARD ====== -->
     <section id="view-dashboard" class="view active">
       <div class="view-header">
-        <h2>Vue d'ensemble — <span id="produit-actif-label"></span> <select id="dash-year" class="year-select"></select></h2>
+        <h2>Vue d'ensemble - <span id="produit-actif-label"></span> <select id="dash-year" class="year-select"></select></h2>
       </div>
       <h3 style="margin-top:0;">Indicateurs prioritaires</h3>
       <div class="kpi-highlight">
@@ -86,7 +86,7 @@
     <!-- ====== TABLEAU DE TÂCHES ====== -->
     <section id="view-plan" class="view">
       <div class="view-header">
-        <h2>Tableau de tâches — <span id="produit-tableau-label"></span></h2>
+        <h2>Tableau de tâches - <span id="produit-tableau-label"></span></h2>
         <div class="filter-bar">
           <label>Année</label><select id="plan-annee"></select>
           <label>Mois</label><select id="plan-mois"></select>
@@ -138,7 +138,7 @@
       <!-- === REVUE (fusionnée ici) === -->
       <div style="margin-top:32px;padding-top:24px;border-top:3px solid #1F3864;">
         <div class="view-header">
-          <h2 style="margin-bottom:0;">Revue — <span id="produit-revue-label"></span></h2>
+          <h2 style="margin-bottom:0;">Revue - <span id="produit-revue-label"></span></h2>
           <div class="filter-bar">
             <label>Type</label>
             <select id="revue-type">
@@ -174,7 +174,7 @@
       </div>
       <p class="hint">📋 = checklist. 🔍 = cliquez sur un mois pour zoomer. 🏁 = jalons MSI avec icônes par type.</p>
       <div id="calendar-container"><div id="calendar-grid" class="calendar-grid"></div></div>
-      <h3 style="margin-top:32px;">Calendrier MSI — Grandes dates</h3>
+      <h3 style="margin-top:32px;">Calendrier MSI - Grandes dates</h3>
       <div class="view-header"><p class="hint" style="margin:0;">Revues projet, interventions client, jalons MSI.</p><button class="btn-primary" id="btn-add-jalon">+ Nouveau jalon</button></div>
       <div id="jalons-grid" class="jalons-grid"></div>
     </section>
@@ -216,7 +216,7 @@
         <div><h2 style="margin-bottom:4px;">Aide et mode d'emploi</h2><p class="hint" style="margin:0;">Documentation complète de l'outil de prospection commerciale ICAM.</p></div>
       </div>
       <div class="aide-block"><h3>1. Choix de produit</h3><p>À la connexion, choisissez MSI ou Formation LEAN. Changeable via le sélecteur en haut à droite. Toutes les données sont filtrées par produit.</p></div>
-      <div class="aide-block"><h3>2. Tableau de tâches — 5 colonnes</h3><p><strong>1. Leads</strong> (Nb contacts) → <strong>2. Phoning</strong> (Nb appels + Nb RDV à obtenir) → <strong>3. RDV Qualification du besoin</strong> (Nb besoins identifiés + retenus) → <strong>4. Rédaction de l'offre</strong> (Nb propositions réalisées + retenues) → <strong>5. Avancement</strong> (Négociation/Signé/Perdu + Montant + Date signature + Période MSI).</p><p><strong>Période MSI</strong> : chaque contrat signé est rattaché à une période MSI (2526B, 2627A...) pour savoir à quelle période il compte, même s'il est signé pendant une autre. Les contrats signés sans date de signature apparaissent comme "⏳ En attente de date".</p><p><strong>Glisser-déposer</strong> : quand vous déplacez une carte vers une autre colonne, la modale s'ouvre automatiquement pour remplir les champs de la nouvelle étape.</p></div>
+      <div class="aide-block"><h3>2. Tableau de tâches - 5 colonnes</h3><p><strong>1. Leads</strong> (Nb contacts) → <strong>2. Phoning</strong> (Nb appels + Nb RDV à obtenir) → <strong>3. RDV Qualification du besoin</strong> (Nb besoins identifiés + retenus) → <strong>4. Rédaction de l'offre</strong> (Nb propositions réalisées + retenues) → <strong>5. Avancement</strong> (Négociation/Signé/Perdu + Montant + Date signature + Période MSI).</p><p><strong>Période MSI</strong> : chaque contrat signé est rattaché à une période MSI (2526B, 2627A...) pour savoir à quelle période il compte, même s'il est signé pendant une autre. Les contrats signés sans date de signature apparaissent comme "⏳ En attente de date".</p><p><strong>Glisser-déposer</strong> : quand vous déplacez une carte vers une autre colonne, la modale s'ouvre automatiquement pour remplir les champs de la nouvelle étape.</p></div>
       <div class="aide-block"><h3>3. Suivi hebdomadaire + Revue</h3><p>Saisie par commercial des 4 activités : Appels/Contacts, <strong>RDV planifiés</strong>, <strong>RDV qualifiés</strong>, Offres envoyées. Section "Tâches ouvertes T0 vs T+1" : identifie les tâches qui devaient être faites cette semaine. <strong>En dessous : Revue</strong> (mensuel/trimestriel/période MSI) avec KPI, comparaison vs période précédente, et taux de conversion.</p></div>
       <div class="aide-block"><h3>4. Calendrier</h3><p>Calendrier annuel par source avec icône 📋 pour les checklists de préparatifs. <strong>Ligne 🏁 Jalons MSI</strong> : icônes spécifiques (📊 Revue, 🎯 Intervention client, 🎤 Soutenance, 📦 Livrable, 👥 Réunion). <strong>Zoom mensuel</strong> : cliquez sur 🔍 à côté du mois pour voir le calendrier détaillé jour par jour + liste chronologique. <strong>Plein écran</strong> : bouton ⛶. <strong>+ Source</strong> : créez une nouvelle source directement depuis le calendrier.</p></div>
       <div class="aide-block"><h3>5. Export Excel</h3><p>Bouton "📊 Export Excel" en haut à droite. Génère un fichier .xlsx avec 9 onglets : Tâches, Suivi hebdo, Événements, Objectifs événements, Objectifs périodes, KPI, Objectifs sources, Checklists, Jalons MSI. Chaque onglet a un en-tête clair et les données sont structurées.</p></div>

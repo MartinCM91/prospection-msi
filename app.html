@@ -20,7 +20,7 @@
         <label>Produit</label>
         <select id="produit-select"></select>
       </div>
-      <button id="btn-export-excel" class="btn-secondary" title="Exporter toutes les données en Excel">📊 Export Excel</button>
+      <button id="btn-export-excel" class="btn-secondary" title="Export Excel complet">📊 Export Excel</button>
       <span id="user-info"></span>
       <button id="btn-logout" class="btn-secondary">Déconnexion</button>
     </div>
@@ -32,93 +32,39 @@
     <button class="tab" data-tab="hebdo">Suivi hebdo</button>
     <button class="tab" data-tab="calendar">Calendrier</button>
     <button class="tab" data-tab="events">Événements</button>
+    <button class="tab" data-tab="revue">Revue</button>
     <button class="tab" data-tab="objectifs">Objectifs</button>
     <button class="tab tab-aide" data-tab="aide">Aide</button>
   </nav>
 
   <main id="app">
 
+    <!-- ====== DASHBOARD ====== -->
     <section id="view-dashboard" class="view active">
       <div class="view-header">
         <h2>Vue d'ensemble — <span id="produit-actif-label"></span> <select id="dash-year" class="year-select"></select></h2>
       </div>
-
       <h3 style="margin-top:0;">Indicateurs prioritaires</h3>
       <div class="kpi-highlight">
-        <div class="kpi-card-big" id="kpi-card-rdv">
-          <div class="kpi-card-big-label">RDV qualifiés cette semaine</div>
-          <div class="kpi-card-big-value" id="kpi-rdv-sem">—</div>
-          <div class="kpi-card-big-objectif" id="kpi-rdv-sem-obj">Objectif 4 / semaine</div>
-          <div class="kpi-card-big-status" id="kpi-rdv-status"></div>
-        </div>
-        <div class="kpi-card-big" id="kpi-card-prop">
-          <div class="kpi-card-big-label">Offres rédigées ce mois</div>
-          <div class="kpi-card-big-value" id="kpi-prop-mois">—</div>
-          <div class="kpi-card-big-objectif" id="kpi-prop-mois-obj">Objectif 8 / mois</div>
-          <div class="kpi-card-big-status" id="kpi-prop-status"></div>
-        </div>
-        <div class="kpi-card-big" id="kpi-card-contrats">
-          <div class="kpi-card-big-label">Contrats signés (année)</div>
-          <div class="kpi-card-big-value" id="kpi-contrats">—</div>
-          <div class="kpi-card-big-objectif" id="kpi-contrats-obj">Objectif annuel</div>
-          <div class="kpi-card-big-status" id="kpi-contrats-status"></div>
-        </div>
+        <div class="kpi-card-big" id="kpi-card-rdv"><div class="kpi-card-big-label">RDV qualifiés cette semaine</div><div class="kpi-card-big-value" id="kpi-rdv-sem">—</div><div class="kpi-card-big-objectif" id="kpi-rdv-sem-obj">Objectif 4 / semaine</div><div class="kpi-card-big-status" id="kpi-rdv-status"></div></div>
+        <div class="kpi-card-big" id="kpi-card-prop"><div class="kpi-card-big-label">Offres rédigées ce mois</div><div class="kpi-card-big-value" id="kpi-prop-mois">—</div><div class="kpi-card-big-objectif" id="kpi-prop-mois-obj">Objectif 8 / mois</div><div class="kpi-card-big-status" id="kpi-prop-status"></div></div>
+        <div class="kpi-card-big" id="kpi-card-contrats"><div class="kpi-card-big-label">Contrats signés (année)</div><div class="kpi-card-big-value" id="kpi-contrats">—</div><div class="kpi-card-big-objectif" id="kpi-contrats-obj">Objectif annuel</div><div class="kpi-card-big-status" id="kpi-contrats-status"></div></div>
       </div>
-
-      <h3>6 KPI détaillés du plan d'action</h3>
+      <h3>6 KPI détaillés</h3>
       <div class="kpi-grid kpi-grid-6">
-        <div class="kpi-card kpi-color-blue">
-          <div class="kpi-label">Nb contacts</div>
-          <div class="kpi-value" id="kpi6-contacts">—</div>
-          <div class="kpi-objectif" id="kpi6-contacts-obj"></div>
-          <div class="kpi-percent" id="kpi6-contacts-pct"></div>
-        </div>
-        <div class="kpi-card kpi-color-blue">
-          <div class="kpi-label">RDV qualifiés</div>
-          <div class="kpi-value" id="kpi6-rdv">—</div>
-          <div class="kpi-objectif" id="kpi6-rdv-obj"></div>
-          <div class="kpi-percent" id="kpi6-rdv-pct"></div>
-        </div>
-        <div class="kpi-card kpi-color-orange">
-          <div class="kpi-label">Offres rédigées</div>
-          <div class="kpi-value" id="kpi6-propales">—</div>
-          <div class="kpi-objectif" id="kpi6-propales-obj"></div>
-          <div class="kpi-percent" id="kpi6-propales-pct"></div>
-        </div>
-        <div class="kpi-card kpi-color-purple">
-          <div class="kpi-label">En négociation</div>
-          <div class="kpi-value" id="kpi6-encours">—</div>
-          <div class="kpi-objectif">Tâches en colonne Avancement</div>
-        </div>
-        <div class="kpi-card kpi-color-green">
-          <div class="kpi-label">Offres signées</div>
-          <div class="kpi-value" id="kpi6-signees">—</div>
-          <div class="kpi-objectif" id="kpi6-signees-obj"></div>
-          <div class="kpi-percent" id="kpi6-signees-pct"></div>
-        </div>
-        <div class="kpi-card kpi-color-red">
-          <div class="kpi-label">Offres perdues</div>
-          <div class="kpi-value" id="kpi6-perdues">—</div>
-          <div class="kpi-objectif" id="kpi6-perdues-obj"></div>
-        </div>
+        <div class="kpi-card kpi-color-blue"><div class="kpi-label">Nb contacts</div><div class="kpi-value" id="kpi6-contacts">—</div><div class="kpi-objectif" id="kpi6-contacts-obj"></div><div class="kpi-percent" id="kpi6-contacts-pct"></div></div>
+        <div class="kpi-card kpi-color-blue"><div class="kpi-label">RDV qualifiés</div><div class="kpi-value" id="kpi6-rdv">—</div><div class="kpi-objectif" id="kpi6-rdv-obj"></div><div class="kpi-percent" id="kpi6-rdv-pct"></div></div>
+        <div class="kpi-card kpi-color-orange"><div class="kpi-label">Offres rédigées</div><div class="kpi-value" id="kpi6-propales">—</div><div class="kpi-objectif" id="kpi6-propales-obj"></div><div class="kpi-percent" id="kpi6-propales-pct"></div></div>
+        <div class="kpi-card kpi-color-purple"><div class="kpi-label">En négociation</div><div class="kpi-value" id="kpi6-encours">—</div><div class="kpi-objectif">Colonne Avancement</div></div>
+        <div class="kpi-card kpi-color-green"><div class="kpi-label">Offres signées</div><div class="kpi-value" id="kpi6-signees">—</div><div class="kpi-objectif" id="kpi6-signees-obj"></div><div class="kpi-percent" id="kpi6-signees-pct"></div></div>
+        <div class="kpi-card kpi-color-red"><div class="kpi-label">Offres perdues</div><div class="kpi-value" id="kpi6-perdues">—</div><div class="kpi-objectif" id="kpi6-perdues-obj"></div></div>
       </div>
-
-      <h3>Graphiques de pilotage</h3>
+      <h3>Graphiques</h3>
       <div class="charts-grid">
-        <div class="chart-card">
-          <div class="chart-title">RDV par semaine vs objectif</div>
-          <div class="chart-wrapper"><canvas id="chart-rdv-sem"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">Pipeline financier par période</div>
-          <div class="chart-wrapper"><canvas id="chart-pipeline"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">Tâches actives à faire par commercial</div>
-          <div class="chart-wrapper"><canvas id="chart-commerciaux"></canvas></div>
-        </div>
+        <div class="chart-card"><div class="chart-title">RDV par semaine vs objectif</div><div class="chart-wrapper"><canvas id="chart-rdv-sem"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Pipeline financier</div><div class="chart-wrapper"><canvas id="chart-pipeline"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Tâches à faire par commercial</div><div class="chart-wrapper"><canvas id="chart-commerciaux"></canvas></div></div>
       </div>
-
       <h3>Indicateurs financiers</h3>
       <div class="kpi-grid">
         <div class="kpi-card"><div class="kpi-label">CA signé (€)</div><div class="kpi-value" id="kpi-ca-signe">—</div></div>
@@ -127,352 +73,232 @@
         <div class="kpi-card"><div class="kpi-label">Atteinte CA</div><div class="kpi-value" id="kpi-atteinte-ca">—</div></div>
         <div class="kpi-card"><div class="kpi-label">Tâches à faire</div><div class="kpi-value" id="kpi-cibles-act">—</div></div>
       </div>
-
       <h3>Performance par période</h3>
-      <div class="table-wrapper">
-        <table class="data-table" id="periodes-table">
-          <thead><tr><th>Période</th><th>CA cible</th><th>CA signé</th><th>CA en cours</th><th>Atteinte</th><th>Cible nb</th><th>Signés</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
+      <div class="table-wrapper"><table class="data-table" id="periodes-table"><thead><tr><th>Période</th><th>CA cible</th><th>CA signé</th><th>CA en cours</th><th>Atteinte</th><th>Cible nb</th><th>Signés</th></tr></thead><tbody></tbody></table></div>
       <h3>Tâches par colonne</h3>
-      <div class="table-wrapper">
-        <table class="data-table" id="colonnes-table">
-          <thead><tr><th>Colonne</th><th>Ouvertes</th><th>Terminées</th><th>Total</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <h3>Tâches en retard (échéance dépassée, non terminées)</h3>
-      <div class="table-wrapper">
-        <table class="data-table" id="retards-table">
-          <thead><tr><th>Description</th><th>Responsable</th><th>Colonne</th><th>Échéance</th><th>Retard</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
+      <div class="table-wrapper"><table class="data-table" id="colonnes-table"><thead><tr><th>Colonne</th><th>Ouvertes</th><th>Terminées</th><th>Total</th></tr></thead><tbody></tbody></table></div>
+      <h3>Tâches en retard</h3>
+      <div class="table-wrapper"><table class="data-table" id="retards-table"><thead><tr><th>Description</th><th>Responsable</th><th>Colonne</th><th>Échéance</th><th>Retard</th></tr></thead><tbody></tbody></table></div>
       <h3>Performance par commercial</h3>
-      <div class="table-wrapper">
-        <table class="data-table" id="commerciaux-table">
-          <thead><tr><th>Commercial</th><th>Tâches à faire</th><th>RDV</th><th>Offres</th><th>CA signé</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <div class="table-wrapper"><table class="data-table" id="commerciaux-table"><thead><tr><th>Commercial</th><th>Tâches à faire</th><th>RDV</th><th>Offres</th><th>CA signé</th></tr></thead><tbody></tbody></table></div>
     </section>
 
+    <!-- ====== TABLEAU DE TÂCHES ====== -->
     <section id="view-plan" class="view">
       <div class="view-header">
         <h2>Tableau de tâches — <span id="produit-tableau-label"></span></h2>
         <div class="filter-bar">
-          <label>Période</label>
+          <label>Année</label><select id="plan-annee"></select>
+          <label>Mois</label><select id="plan-mois"></select>
+          <label>Semaine</label><select id="plan-semaine"></select>
+          <label>Période MSI</label>
           <select id="plan-periode">
-            <option value="">Toutes les périodes</option>
-            <option value="2526B">2526B (févr-juin 2026)</option>
-            <option value="2627A">2627A (sept 2026 - janv 2027)</option>
-            <option value="2627B">2627B (févr-juin 2027)</option>
+            <option value="">Toutes</option>
+            <option value="2526B">2526B</option>
+            <option value="2627A">2627A</option>
+            <option value="2627B">2627B</option>
           </select>
           <label>Responsable</label>
           <select id="plan-responsable"><option value="">Tous</option></select>
-          <label><input type="checkbox" id="plan-show-done"> Afficher les terminées</label>
+          <button class="btn-secondary btn-filter-rapide" id="btn-filter-this-week">Cette semaine</button>
+          <button class="btn-secondary btn-filter-rapide" id="btn-filter-this-month">Ce mois</button>
+          <button class="btn-secondary btn-filter-rapide" id="btn-filter-clear">Effacer</button>
+          <label><input type="checkbox" id="plan-show-done"> Terminées</label>
           <button class="btn-primary" id="btn-add-cible">+ Nouvelle tâche</button>
         </div>
       </div>
-      <p class="hint">Glissez-déposez les cartes. Cochez la case ☐ pour marquer une tâche terminée (elle sera masquée par défaut). Les tâches en retard apparaissent en rouge.</p>
+      <p class="hint">Glissez-déposez entre colonnes → la modale s'ouvre pour remplir les champs de la nouvelle étape. Case ☐ = marquer terminée. Rouge = en retard.</p>
       <div id="kanban-board" class="kanban-board kanban-v8"></div>
     </section>
 
+    <!-- ====== SUIVI HEBDO ====== -->
     <section id="view-hebdo" class="view">
       <div class="view-header">
-        <h2>Suivi hebdomadaire (global, tous produits)</h2>
+        <h2>Suivi hebdomadaire</h2>
         <div class="filter-bar">
           <label>Année</label><select id="hebdo-year"></select>
           <label>Semaine</label><select id="hebdo-week"></select>
         </div>
       </div>
-      <p class="hint">Saisissez les actions effectuées. Sauvegarde automatique.</p>
-
-      <h3 style="margin-top:0;">Saisie de la semaine en cours</h3>
-      <div class="table-wrapper">
-        <table class="data-table" id="hebdo-table">
-          <thead><tr><th>Commercial</th><th>Appels / Contacts</th><th>RDV effectués</th><th>Offres envoyées</th><th>Total semaine</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <h3>Tâches ouvertes à T0 vs T+1 semaine</h3>
-      <p class="hint">Identifie les tâches qui devaient être faites cette semaine et qui sont encore ouvertes la semaine prochaine.</p>
-      <div class="table-wrapper">
-        <table class="data-table" id="hebdo-taches-table">
-          <thead><tr><th>Description</th><th>Responsable</th><th>Colonne</th><th>Échéance</th><th>Statut S+1</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
+      <h3 style="margin-top:0;">Saisie de la semaine</h3>
+      <div class="table-wrapper"><table class="data-table" id="hebdo-table"><thead><tr><th>Commercial</th><th>Appels / Contacts</th><th>RDV planifiés</th><th>RDV effectués</th><th>Offres envoyées</th><th>Total</th></tr></thead><tbody></tbody></table></div>
+      <h3>Tâches ouvertes à T0 vs T+1</h3>
+      <p class="hint">Tâches avec échéance cette semaine ou avant, encore ouvertes.</p>
+      <div class="table-wrapper"><table class="data-table" id="hebdo-taches-table"><thead><tr><th>Description</th><th>Responsable</th><th>Colonne</th><th>Échéance</th><th>Statut S+1</th></tr></thead><tbody></tbody></table></div>
       <h3>Graphiques d'évolution</h3>
       <div class="charts-grid">
-        <div class="chart-card">
-          <div class="chart-title">Évolution RDV sur 12 semaines</div>
-          <div class="chart-wrapper"><canvas id="chart-evol-rdv"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">Évolution Offres sur 12 semaines</div>
-          <div class="chart-wrapper"><canvas id="chart-evol-prop"></canvas></div>
-        </div>
+        <div class="chart-card"><div class="chart-title">Évolution RDV sur 12 semaines</div><div class="chart-wrapper"><canvas id="chart-evol-rdv"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Évolution Offres sur 12 semaines</div><div class="chart-wrapper"><canvas id="chart-evol-prop"></canvas></div></div>
       </div>
-
-      <h3>Comparaison par commercial (cumul de l'année)</h3>
-      <div class="chart-card-full">
-        <div class="chart-wrapper" style="height:280px;"><canvas id="chart-compar-comm"></canvas></div>
-      </div>
-
-      <h3>Récapitulatif mensuel (cumul 4 dernières semaines)</h3>
-      <div class="table-wrapper">
-        <table class="data-table" id="hebdo-recap-table">
-          <thead><tr><th>Commercial</th><th>Appels/Contacts</th><th>RDV</th><th>Offres</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <h3>Comparaison par commercial (cumul année)</h3>
+      <div class="chart-card-full"><div class="chart-wrapper" style="height:280px;"><canvas id="chart-compar-comm"></canvas></div></div>
+      <h3>Récapitulatif mensuel (4 dernières semaines)</h3>
+      <div class="table-wrapper"><table class="data-table" id="hebdo-recap-table"><thead><tr><th>Commercial</th><th>Appels/Contacts</th><th>RDV planifiés</th><th>RDV effectués</th><th>Offres</th></tr></thead><tbody></tbody></table></div>
     </section>
 
+    <!-- ====== CALENDRIER ====== -->
     <section id="view-calendar" class="view">
       <div class="view-header">
         <h2>Calendrier annuel</h2>
         <div class="filter-bar">
           <select id="year-select"></select>
           <select id="cal-filter-groupe">
-            <option value="">Toutes les sources</option>
+            <option value="">Toutes</option>
             <option value="EVENEMENT">Événements</option>
             <option value="SALONS">Salons</option>
             <option value="RESEAU_PRO">Réseau pro</option>
-            <option value="ALUMNIS">Alumnis</option>
-            <option value="FIDELISATION">Fidélisation</option>
-            <option value="RESEAU_ICAM">Réseau ICAM</option>
           </select>
           <button class="btn-secondary" id="btn-add-source-cal">+ Source</button>
           <button class="btn-primary" id="btn-add-from-cal">+ Événement</button>
           <button class="btn-secondary" id="btn-fullscreen-cal" title="Plein écran">⛶ Plein écran</button>
         </div>
       </div>
-      <p class="hint">Cliquez sur 📋 pour la checklist de préparatifs. Bouton ⛶ pour le plein écran.</p>
-      <div id="calendar-container">
-        <div id="calendar-grid" class="calendar-grid"></div>
-      </div>
-
+      <p class="hint">📋 = checklist. 🔍 = cliquez sur un mois pour zoomer. 🏁 = jalons MSI avec icônes par type.</p>
+      <div id="calendar-container"><div id="calendar-grid" class="calendar-grid"></div></div>
       <h3 style="margin-top:32px;">Calendrier MSI — Grandes dates</h3>
-      <div class="view-header">
-        <p class="hint" style="margin:0;">Revues projet, interventions client, jalons MSI. Servent de repères dans la planification.</p>
-        <button class="btn-primary" id="btn-add-jalon">+ Nouveau jalon</button>
-      </div>
+      <div class="view-header"><p class="hint" style="margin:0;">Revues projet, interventions client, jalons MSI.</p><button class="btn-primary" id="btn-add-jalon">+ Nouveau jalon</button></div>
       <div id="jalons-grid" class="jalons-grid"></div>
     </section>
 
+    <!-- ====== ÉVÉNEMENTS ====== -->
     <section id="view-events" class="view">
-      <div class="view-header">
-        <h2>Tous les événements</h2>
-        <button class="btn-primary" id="btn-add-event">+ Nouvel événement</button>
-      </div>
-      <div class="table-wrapper">
-        <table class="data-table" id="events-table">
-          <thead><tr><th>Dates</th><th>Type</th><th>Action</th><th>Source</th><th>Lieu</th><th>Responsable</th><th>Statut</th><th></th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <div class="view-header"><h2>Tous les événements</h2><button class="btn-primary" id="btn-add-event">+ Nouvel événement</button></div>
+      <div class="table-wrapper"><table class="data-table" id="events-table"><thead><tr><th>Dates</th><th>Type</th><th>Action</th><th>Source</th><th>Lieu</th><th>Responsable</th><th>Statut</th><th></th></tr></thead><tbody></tbody></table></div>
     </section>
 
+    <!-- ====== REVUE (NOUVEAU) ====== -->
+    <section id="view-revue" class="view">
+      <div class="view-header">
+        <h2>Revue — <span id="produit-revue-label"></span></h2>
+        <div class="filter-bar">
+          <label>Type</label>
+          <select id="revue-type">
+            <option value="mensuel">Mensuel</option>
+            <option value="trimestriel">Trimestriel</option>
+            <option value="periode_msi">Période MSI</option>
+          </select>
+          <label>Période</label>
+          <select id="revue-value"></select>
+        </div>
+      </div>
+      <p class="hint">Rétrospective complète pour les revues mensuelles. Comparaison vs période précédente (mensuel et trimestriel).</p>
+      <div id="revue-content"></div>
+    </section>
+
+    <!-- ====== OBJECTIFS ====== -->
     <section id="view-objectifs" class="view">
       <h2>Objectifs</h2>
-
       <div class="section-block">
-        <div class="section-header">
-          <h3>Objectifs annuels et par période</h3>
-          <div class="filter-bar">
-            <label>Année</label><select id="obj-year"></select>
-            <button class="btn-secondary" id="btn-add-periode">+ Ajouter une période</button>
-            <button class="btn-danger" id="btn-reset-periodes" title="Efface les CA et nombres cibles pour redéfinir">🔄 Remise à zéro</button>
-          </div>
-        </div>
-        <p class="hint">CA cible et nombre de contrats à signer pour chaque période. La période ANNUEL = objectif global.</p>
-        <div class="table-wrapper">
-          <table class="data-table" id="obj-annuels-table">
-            <thead><tr><th>Période</th><th>CA cible (€)</th><th>Nombre cible</th><th>Commentaire</th><th></th></tr></thead>
-            <tbody></tbody>
-          </table>
+        <div class="section-header"><h3>Objectifs annuels et par période</h3><div class="filter-bar"><label>Année</label><select id="obj-year"></select><button class="btn-secondary" id="btn-add-periode">+ Période</button><button class="btn-danger" id="btn-reset-periodes" title="Remet les valeurs cibles à 0">🔄 RAZ</button></div></div>
+        <div class="table-wrapper"><table class="data-table" id="obj-annuels-table"><thead><tr><th>Période</th><th>CA cible (€)</th><th>Nombre cible</th><th>Commentaire</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="section-block">
+        <div class="section-header"><h3>6 KPI cibles pour <span id="obj-produit-label"></span></h3><button class="btn-danger" id="btn-reset-kpi">🔄 RAZ</button></div>
+        <div class="table-wrapper"><table class="data-table" id="kpi6-table"><thead><tr><th>Indicateur</th><th>Valeur cible annuelle</th><th>Commentaire</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="section-block">
+        <h3>Objectifs hebdo/mensuels (alerte dashboard)</h3>
+        <div class="row" style="margin-top:12px;">
+          <div><label class="form-field-label">RDV qualifiés / semaine</label><input type="number" id="kpi-rdv-cible" min="0" value="4" style="padding:9px 12px;border:1px solid #D3D1C7;border-radius:6px;font-size:14px;width:120px;"></div>
+          <div><label class="form-field-label">Offres rédigées / mois</label><input type="number" id="kpi-prop-cible" min="0" value="8" style="padding:9px 12px;border:1px solid #D3D1C7;border-radius:6px;font-size:14px;width:120px;"></div>
         </div>
       </div>
-
       <div class="section-block">
-        <div class="section-header">
-          <h3>6 KPI cibles pour <span id="obj-produit-label"></span></h3>
-          <button class="btn-danger" id="btn-reset-kpi" title="Remet à 0 toutes les valeurs cibles KPI">🔄 Remise à zéro</button>
-        </div>
-        <p class="hint">Les 6 KPI annuels du plan d'action. Modifications sauvegardées automatiquement.</p>
-        <div class="table-wrapper">
-          <table class="data-table" id="kpi6-table">
-            <thead><tr><th>Indicateur</th><th>Valeur cible annuelle</th><th>Commentaire</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="section-block">
-        <h3>Objectifs hebdomadaires/mensuels (alerte tableau de bord)</h3>
-        <p class="hint">Déclenchent les alertes rouge/vert sur les 3 cartes prioritaires.</p>
-        <div class="row" style="margin-top: 12px;">
-          <div>
-            <label class="form-field-label">RDV qualifiés / semaine</label>
-            <input type="number" id="kpi-rdv-cible" min="0" value="4" style="padding:9px 12px;border:1px solid #D3D1C7;border-radius:6px;font-size:14px;width:120px;">
-          </div>
-          <div>
-            <label class="form-field-label">Offres rédigées / mois</label>
-            <input type="number" id="kpi-prop-cible" min="0" value="8" style="padding:9px 12px;border:1px solid #D3D1C7;border-radius:6px;font-size:14px;width:120px;">
-          </div>
-        </div>
-      </div>
-
-      <div class="section-block">
-        <div class="section-header">
-          <h3>Objectifs de contacts par source</h3>
-          <button class="btn-danger" id="btn-reset-objectifs-sources" title="Remet à 0 tous les objectifs de contacts">🔄 Remise à zéro</button>
-        </div>
-        <p class="hint">Cliquez sur les chevrons (▶) pour déplier les sous-catégories.</p>
-        <div class="table-wrapper">
-          <table class="data-table" id="objectifs-table">
-            <thead><tr><th>Source</th><th>Période 2526B</th><th>Période 2627A</th><th>Total</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
+        <div class="section-header"><h3>Objectifs contacts par source</h3><button class="btn-danger" id="btn-reset-objectifs-sources">🔄 RAZ</button></div>
+        <div class="table-wrapper"><table class="data-table" id="objectifs-table"><thead><tr><th>Source</th><th>Période 2526B</th><th>Période 2627A</th><th>Total</th></tr></thead><tbody></tbody></table></div>
       </div>
     </section>
 
+    <!-- ====== AIDE (enrichie) ====== -->
     <section id="view-aide" class="view">
       <div class="aide-hero">
         <img src="logo-icam.png" alt="ICAM" class="aide-logo" onerror="this.style.display='none'">
-        <div>
-          <h2 style="margin-bottom: 4px;">Aide et mode d'emploi</h2>
-          <p class="hint" style="margin: 0;">Documentation interne pour assurer la continuité de l'outil.</p>
-        </div>
+        <div><h2 style="margin-bottom:4px;">Aide et mode d'emploi</h2><p class="hint" style="margin:0;">Documentation complète de l'outil de prospection commerciale ICAM.</p></div>
       </div>
-      <div class="aide-block">
-        <h3>1. Choix de produit</h3>
-        <p>À la connexion, choisissez le produit (MSI ou Formation LEAN). Le sélecteur en haut à droite permet de changer à tout moment.</p>
-      </div>
-      <div class="aide-block">
-        <h3>2. Tableau de tâches</h3>
-        <p>5 colonnes : Leads → Phoning → RDV Qualification du besoin → Rédaction de l'offre → Avancement (Négociation/Signé/Perdu). La case "Terminée" sur une carte la marque comme close. Les tâches en retard apparaissent en rouge.</p>
-      </div>
-      <div class="aide-block">
-        <h3>3. Suivi hebdo</h3>
-        <p>Saisie hebdomadaire des actions par commercial. La section "Tâches ouvertes à T0 vs T+1" identifie les tâches qui restent ouvertes d'une semaine sur l'autre.</p>
-      </div>
-      <div class="aide-block">
-        <h3>4. Calendrier</h3>
-        <p>Le calendrier principal liste les sources de prospection. En dessous, le calendrier MSI affiche les grandes dates (revue projet, intervention client). Bouton ⛶ pour le plein écran. Bouton "+ Source" pour ajouter une nouvelle source ou sous-source.</p>
-      </div>
-      <div class="aide-block">
-        <h3>5. Export Excel</h3>
-        <p>Bouton "📊 Export Excel" en haut à droite. Génère un fichier .xlsx avec plusieurs onglets : tâches, suivi hebdo, événements, objectifs, KPI.</p>
-      </div>
-      <div class="aide-block">
-        <h3>6. Remise à zéro</h3>
-        <p>Dans l'onglet Objectifs, chaque section a un bouton 🔄 qui efface les valeurs cibles (les données réalisées sont préservées).</p>
-      </div>
-      <div class="aide-block">
-        <h3>7. Maintenance technique</h3>
-        <p>Code sur GitHub. Base sur Supabase. Hébergement Netlify ou Cloudflare Pages.</p>
-      </div>
+      <div class="aide-block"><h3>1. Choix de produit</h3><p>À la connexion, choisissez MSI ou Formation LEAN. Changeable via le sélecteur en haut à droite. Toutes les données sont filtrées par produit.</p></div>
+      <div class="aide-block"><h3>2. Tableau de tâches — 5 colonnes</h3><p><strong>1. Leads</strong> → <strong>2. Phoning</strong> → <strong>3. RDV Qualification du besoin</strong> → <strong>4. Rédaction de l'offre</strong> → <strong>5. Avancement</strong> (Négociation/Signé/Perdu).</p><p>Chaque colonne a ses propres champs : en Phoning c'est "Nb contacts + Nb RDV attendus", en Qualification c'est "Nb besoins identifiés + Nb besoins retenus", en Rédaction c'est "Nb propositions réalisées + Nb retenues", en Avancement c'est "Statut + Montant + Date signature".</p><p><strong>Glisser-déposer</strong> : quand vous déplacez une carte vers une autre colonne, la modale s'ouvre automatiquement pour remplir les champs de la nouvelle étape. <strong>Case ☐</strong> : cochez pour marquer une tâche terminée (elle devient grisée et disparaît du tableau sauf si vous activez le filtre "Terminées"). <strong>Tâches en retard</strong> : bordure rouge et ⚠️ si l'échéance est dépassée. <strong>Sans échéance</strong> : fond jaune pour vous alerter.</p><p><strong>Filtres avancés</strong> : Année + Mois + Semaine + Période MSI + Responsable. Boutons rapides "Cette semaine" et "Ce mois" pour filtrer en un clic.</p></div>
+      <div class="aide-block"><h3>3. Suivi hebdomadaire</h3><p>Saisie par commercial des 4 activités : Appels/Contacts, <strong>RDV planifiés</strong> (prévu mais pas encore fait), RDV effectués, Offres envoyées. Section "Tâches ouvertes T0 vs T+1" : identifie les tâches qui devaient être faites cette semaine et restent ouvertes.</p></div>
+      <div class="aide-block"><h3>4. Calendrier</h3><p>Calendrier annuel par source avec icône 📋 pour les checklists de préparatifs. <strong>Ligne 🏁 Jalons MSI</strong> : icônes spécifiques (📊 Revue, 🎯 Intervention client, 🎤 Soutenance, 📦 Livrable, 👥 Réunion). <strong>Zoom mensuel</strong> : cliquez sur 🔍 à côté du mois pour voir le calendrier détaillé jour par jour + liste chronologique. <strong>Plein écran</strong> : bouton ⛶. <strong>+ Source</strong> : créez une nouvelle source directement depuis le calendrier.</p></div>
+      <div class="aide-block"><h3>5. Revue</h3><p>Onglet de rétrospective mensuelle, trimestrielle ou par période MSI. Affiche les KPI (contacts, RDV planifiés, RDV effectués, offres, signés, perdus) avec <strong>comparaison vs période précédente</strong> (↑↓ en %) et <strong>taux de conversion</strong> (Contacts→RDV→Offre→Signature).</p></div>
+      <div class="aide-block"><h3>6. Export Excel</h3><p>Bouton "📊 Export Excel" en haut à droite. Génère un fichier .xlsx avec 9 onglets : Tâches, Suivi hebdo, Événements, Objectifs événements, Objectifs périodes, KPI, Objectifs sources, Checklists, Jalons MSI. Chaque onglet a un en-tête clair et les données sont structurées.</p></div>
+      <div class="aide-block"><h3>7. Objectifs et remise à zéro</h3><p>Objectifs par période (CA + nombre), 6 KPI cibles, objectifs contacts par source. Chaque section a un bouton 🔄 RAZ pour remettre les valeurs cibles à 0 (les données réalisées sont conservées).</p></div>
+      <div class="aide-block"><h3>8. Maintenance technique</h3><p>Code source : GitHub. Base de données : Supabase (PostgreSQL). Hébergement : Netlify (déploiement automatique à chaque push). Pour modifier le code : éditez les fichiers sur GitHub, attendez 30 secondes, puis rechargez avec Ctrl+F5.</p></div>
     </section>
   </main>
 
   <!-- ====== MODALES ====== -->
 
-  <!-- Modale Tâche v8 -->
+  <!-- Modale Tâche v9 (dynamique par colonne) -->
   <div id="modal-cible" class="modal hidden">
     <div class="modal-content modal-large">
       <div class="modal-header"><h3 id="modal-cible-title">Nouvelle tâche</h3><button id="modal-cible-close">✕</button></div>
       <form id="cible-form" class="clean-form">
         <input type="hidden" id="cible-id">
         <div class="form-section">
-          <h4 class="form-section-title">Description de la tâche</h4>
-          <div class="form-row">
-            <div class="form-field">
-              <label>Description de l'action *</label>
-              <input type="text" id="cible-description" required placeholder="Ex : Appeler 10 prospects du salon Tech Innove">
-            </div>
-          </div>
+          <h4 class="form-section-title">Description</h4>
+          <div class="form-row"><div class="form-field"><label>Description de l'action *</label><input type="text" id="cible-description" required placeholder="Ex : Appeler 10 prospects du salon"></div></div>
           <div class="form-row form-row-2">
             <div class="form-field"><label>Colonne / Étape *</label><select id="cible-domaine" required></select></div>
-            <div class="form-field"><label>Responsable de l'action</label><select id="cible-responsable"></select></div>
+            <div class="form-field"><label>Responsable</label><select id="cible-responsable"></select></div>
           </div>
+          <div class="form-row form-row-2">
+            <div class="form-field"><label>Source</label><select id="cible-source"></select></div>
+            <div class="form-field"><label>Échéance <span id="cible-echeance-alert" class="hint" style="color:#A32D2D;display:none;">⚠️ Non définie</span></label><input type="date" id="cible-echeance"></div>
+          </div>
+        </div>
+
+        <!-- Champs dynamiques selon la colonne -->
+        <div class="form-section" id="section-col-1-2">
+          <h4 class="form-section-title">Objectifs (Leads / Phoning)</h4>
           <div class="form-row form-row-2">
             <div class="form-field"><label>Nb contacts attendus</label><input type="number" id="cible-nb-contacts" min="0" value="0"></div>
             <div class="form-field"><label>Nb RDV attendus</label><input type="number" id="cible-nb-rdv" min="0" value="0"></div>
           </div>
+        </div>
+
+        <div class="form-section" id="section-col-3" style="display:none;">
+          <h4 class="form-section-title">Qualification du besoin (RDV)</h4>
           <div class="form-row form-row-2">
-            <div class="form-field"><label>Source</label><select id="cible-source"></select></div>
-            <div class="form-field">
-              <label>Échéance <span id="cible-echeance-alert" class="hint" style="color:#A32D2D;display:none;">⚠️ Non définie</span></label>
-              <input type="date" id="cible-echeance">
-            </div>
+            <div class="form-field"><label>Nb besoins identifiés</label><input type="number" id="cible-nb-besoins-id" min="0" value="0"></div>
+            <div class="form-field"><label>Nb besoins retenus</label><input type="number" id="cible-nb-besoins-ret" min="0" value="0"></div>
           </div>
         </div>
 
-        <div class="form-section">
-          <h4 class="form-section-title">Résultats attendus (plusieurs possibles)</h4>
-          <div class="form-row">
-            <div class="form-field">
-              <label>Ajouter depuis la liste</label>
-              <select id="cible-resultat-select"></select>
-            </div>
+        <div class="form-section" id="section-col-4" style="display:none;">
+          <h4 class="form-section-title">Rédaction de l'offre</h4>
+          <div class="form-row form-row-2">
+            <div class="form-field"><label>Nb propositions réalisées</label><input type="number" id="cible-nb-prop-real" min="0" value="0"></div>
+            <div class="form-field"><label>Nb propositions retenues</label><input type="number" id="cible-nb-prop-ret" min="0" value="0"></div>
           </div>
-          <div class="form-row">
-            <div class="form-field">
-              <label>Ou saisir librement (Entrée pour ajouter)</label>
-              <input type="text" id="cible-resultat-libre" placeholder="Tapez un résultat et appuyez sur Entrée">
-            </div>
-          </div>
-          <div id="resultats-attendus-list" class="resultats-list"></div>
         </div>
 
         <div class="form-section" id="section-avancement" style="display:none;">
           <h4 class="form-section-title">Avancement (colonne 5)</h4>
           <div class="form-row form-row-2">
-            <div class="form-field">
-              <label>Statut</label>
-              <select id="cible-statut-avancement">
-                <option value="Négociation">Négociation</option>
-                <option value="Signé">Signé</option>
-                <option value="Perdu">Perdu</option>
-              </select>
-            </div>
-            <div class="form-field">
-              <label>Période</label>
-              <select id="cible-periode">
-                <option value="">—</option>
-                <option value="2526B">2526B</option>
-                <option value="2627A">2627A</option>
-                <option value="2627B">2627B</option>
-                <option value="2728A">2728A</option>
-              </select>
-            </div>
+            <div class="form-field"><label>Statut</label><select id="cible-statut-avancement"><option value="Négociation">Négociation</option><option value="Signé">Signé</option><option value="Perdu">Perdu</option></select></div>
+            <div class="form-field"><label>Montant estimé (€)</label><input type="number" id="cible-montant" min="0" step="100" value="0"></div>
           </div>
           <div class="form-row form-row-2">
-            <div class="form-field"><label>Montant estimé (€)</label><input type="number" id="cible-montant" min="0" step="100" value="0"></div>
-            <div class="form-field"><label>Confiance (0-1)</label><input type="number" id="cible-confiance" min="0" max="1" step="0.05" value="0.5"></div>
+            <div class="form-field"><label>Date de signature</label><input type="date" id="cible-date-signature"></div>
+            <div class="form-field"><label>Période MSI</label><select id="cible-periode"><option value="">—</option><option value="2526B">2526B</option><option value="2627A">2627A</option><option value="2627B">2627B</option><option value="2728A">2728A</option></select></div>
           </div>
         </div>
 
-        <input type="hidden" id="cible-etape" value="1">
+        <div class="form-section">
+          <h4 class="form-section-title">Résultats attendus (plusieurs possibles)</h4>
+          <div class="form-row"><div class="form-field"><label>Depuis la liste</label><select id="cible-resultat-select"></select></div></div>
+          <div class="form-row"><div class="form-field"><label>Ou saisir (Entrée pour ajouter)</label><input type="text" id="cible-resultat-libre" placeholder="Tapez puis Entrée"></div></div>
+          <div id="resultats-attendus-list" class="resultats-list"></div>
+        </div>
 
         <div class="form-section">
           <h4 class="form-section-title">Notes</h4>
           <div class="form-row"><div class="form-field"><textarea id="cible-notes" rows="2"></textarea></div></div>
-          <div class="form-row">
-            <div class="form-field">
-              <label><input type="checkbox" id="cible-terminee"> ✅ Tâche terminée (case à cocher quand vous avez fini)</label>
-            </div>
-          </div>
+          <div class="form-row"><div class="form-field"><label><input type="checkbox" id="cible-terminee"> ✅ Tâche terminée</label></div></div>
         </div>
+
+        <input type="hidden" id="cible-etape" value="1">
+        <input type="hidden" id="cible-confiance" value="0.5">
 
         <div class="modal-footer">
           <button type="button" id="btn-delete-cible" class="btn-danger hidden">Supprimer</button>
@@ -488,203 +314,42 @@
       <div class="modal-header"><h3 id="modal-title">Nouvel événement</h3><button id="modal-close">✕</button></div>
       <form id="event-form" class="clean-form">
         <input type="hidden" id="event-id">
-        <div class="form-section">
-          <h4 class="form-section-title">Informations générales</h4>
-          <div class="form-row"><div class="form-field"><label>Quoi (intitulé) *</label><input type="text" id="event-quoi" required></div></div>
-          <div class="form-row form-row-2">
-            <div class="form-field"><label>Type d'événement</label>
-              <select id="event-type">
-                <option value="Extérieur">Extérieur</option>
-                <option value="Intérieur">Intérieur</option>
-              </select>
-            </div>
-            <div class="form-field"><label>Source *</label><select id="event-source" required></select></div>
-          </div>
-          <div class="form-row form-row-2">
-            <div class="form-field"><label>Date début *</label><input type="date" id="event-date" required></div>
-            <div class="form-field"><label>Date fin (optionnel)</label><input type="date" id="event-date-fin"></div>
-          </div>
+        <div class="form-section"><h4 class="form-section-title">Infos</h4>
+          <div class="form-row"><div class="form-field"><label>Quoi *</label><input type="text" id="event-quoi" required></div></div>
+          <div class="form-row form-row-2"><div class="form-field"><label>Type</label><select id="event-type"><option value="Extérieur">Extérieur</option><option value="Intérieur">Intérieur</option></select></div><div class="form-field"><label>Source *</label><select id="event-source" required></select></div></div>
+          <div class="form-row form-row-2"><div class="form-field"><label>Date début *</label><input type="date" id="event-date" required></div><div class="form-field"><label>Date fin</label><input type="date" id="event-date-fin"></div></div>
           <div class="form-row"><div class="form-field"><label>Responsable</label><select id="event-responsable"></select></div></div>
         </div>
-        <div class="form-section">
-          <h4 class="form-section-title">Lieu</h4>
-          <div class="form-row"><div class="form-field"><label>Lieu (libre)</label><input type="text" id="event-lieu-libre" placeholder="Ex : Paris Expo Porte de Versailles"></div></div>
-          <div class="form-row form-row-2">
-            <div class="form-field"><label>Ville</label><input type="text" id="event-lieu-ville"></div>
-            <div class="form-field"><label>Code postal</label><input type="text" id="event-lieu-cp"></div>
-          </div>
-          <div class="form-row"><div class="form-field"><label>Adresse complète</label><input type="text" id="event-lieu-adresse"></div></div>
+        <div class="form-section"><h4 class="form-section-title">Lieu</h4>
+          <div class="form-row"><div class="form-field"><label>Lieu</label><input type="text" id="event-lieu-libre"></div></div>
+          <div class="form-row form-row-2"><div class="form-field"><label>Ville</label><input type="text" id="event-lieu-ville"></div><div class="form-field"><label>CP</label><input type="text" id="event-lieu-cp"></div></div>
+          <div class="form-row"><div class="form-field"><label>Adresse</label><input type="text" id="event-lieu-adresse"></div></div>
         </div>
-        <div class="form-section">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <h4 class="form-section-title" style="margin:0;">Objectifs et résultats</h4>
-            <button type="button" class="btn-secondary" id="btn-add-objectif-evt" style="font-size:12px;padding:6px 12px;">+ Ajouter</button>
-          </div>
-          <div id="event-objectifs-list"></div>
-        </div>
-        <div class="form-section">
-          <button type="button" class="btn-secondary" id="btn-voir-checklist">📋 Voir la checklist de la source</button>
-        </div>
-        <div class="form-section">
-          <h4 class="form-section-title">Notes</h4>
-          <div class="form-row"><div class="form-field"><label>Préparation</label><input type="text" id="event-comment"></div></div>
-          <div class="form-row"><div class="form-field"><label>Notes</label><textarea id="event-notes" rows="2"></textarea></div></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" id="btn-delete" class="btn-danger hidden">Supprimer</button>
-          <button type="submit" class="btn-primary">Enregistrer</button>
-        </div>
+        <div class="form-section"><div style="display:flex;justify-content:space-between;align-items:center;"><h4 class="form-section-title" style="margin:0;">Objectifs</h4><button type="button" class="btn-secondary" id="btn-add-objectif-evt" style="font-size:12px;padding:6px 12px;">+</button></div><div id="event-objectifs-list"></div></div>
+        <div class="form-section"><button type="button" class="btn-secondary" id="btn-voir-checklist">📋 Checklist source</button></div>
+        <div class="form-section"><h4 class="form-section-title">Notes</h4><div class="form-row"><div class="form-field"><input type="text" id="event-comment" placeholder="Préparation"></div></div><div class="form-row"><div class="form-field"><textarea id="event-notes" rows="2"></textarea></div></div></div>
+        <div class="modal-footer"><button type="button" id="btn-delete" class="btn-danger hidden">Supprimer</button><button type="submit" class="btn-primary">Enregistrer</button></div>
       </form>
     </div>
   </div>
 
   <!-- Modale Checklist -->
-  <div id="modal-checklist" class="modal hidden">
-    <div class="modal-content modal-large">
-      <div class="modal-header">
-        <h3 id="modal-checklist-title">Checklist de préparatifs</h3>
-        <button id="modal-checklist-close">✕</button>
-      </div>
-      <div class="checklist-info" id="checklist-info"></div>
-      <div class="checklist-toolbar">
-        <div class="checklist-count" id="checklist-count"></div>
-        <button type="button" class="btn-primary" id="btn-add-checklist-item">+ Ajouter une action</button>
-      </div>
-      <div id="checklist-items"></div>
-    </div>
-  </div>
+  <div id="modal-checklist" class="modal hidden"><div class="modal-content modal-large"><div class="modal-header"><h3 id="modal-checklist-title">Checklist</h3><button id="modal-checklist-close">✕</button></div><div class="checklist-info" id="checklist-info"></div><div class="checklist-toolbar"><div class="checklist-count" id="checklist-count"></div><button type="button" class="btn-primary" id="btn-add-checklist-item">+ Ajouter</button></div><div id="checklist-items"></div></div></div>
 
   <!-- Modale Item checklist -->
-  <div id="modal-checklist-item" class="modal hidden">
-    <div class="modal-content modal-small">
-      <div class="modal-header"><h3 id="modal-cl-item-title">Nouvelle action</h3><button id="modal-cl-item-close">✕</button></div>
-      <form id="cl-item-form" class="clean-form">
-        <input type="hidden" id="cl-item-id"><input type="hidden" id="cl-item-source-id">
-        <div class="form-row"><div class="form-field"><label>Action *</label><input type="text" id="cl-item-action" required></div></div>
-        <div class="form-row form-row-2">
-          <div class="form-field"><label>Responsable</label><input type="text" id="cl-item-responsable"></div>
-          <div class="form-field"><label>Délai</label><input type="text" id="cl-item-delai"></div>
-        </div>
-        <div class="form-row"><div class="form-field"><label>Outils</label><input type="text" id="cl-item-outils"></div></div>
-        <div class="modal-footer">
-          <button type="button" id="btn-delete-cl-item" class="btn-danger hidden">Supprimer</button>
-          <button type="submit" class="btn-primary">Enregistrer</button>
-        </div>
-      </form>
-    </div>
-  </div>
+  <div id="modal-checklist-item" class="modal hidden"><div class="modal-content modal-small"><div class="modal-header"><h3 id="modal-cl-item-title">Action</h3><button id="modal-cl-item-close">✕</button></div><form id="cl-item-form" class="clean-form"><input type="hidden" id="cl-item-id"><input type="hidden" id="cl-item-source-id"><div class="form-row"><div class="form-field"><label>Action *</label><input type="text" id="cl-item-action" required></div></div><div class="form-row form-row-2"><div class="form-field"><label>Responsable</label><input type="text" id="cl-item-responsable"></div><div class="form-field"><label>Délai</label><input type="text" id="cl-item-delai"></div></div><div class="form-row"><div class="form-field"><label>Outils</label><input type="text" id="cl-item-outils"></div></div><div class="modal-footer"><button type="button" id="btn-delete-cl-item" class="btn-danger hidden">Supprimer</button><button type="submit" class="btn-primary">OK</button></div></form></div></div>
 
   <!-- Modale Objectif événement -->
-  <div id="modal-objectif-evt" class="modal hidden">
-    <div class="modal-content modal-small">
-      <div class="modal-header"><h3 id="modal-obj-evt-title">Nouvel objectif</h3><button id="modal-obj-evt-close">✕</button></div>
-      <form id="obj-evt-form" class="clean-form">
-        <input type="hidden" id="obj-evt-id"><input type="hidden" id="obj-evt-evt-id">
-        <div class="form-row"><div class="form-field"><label>Type *</label>
-          <select id="obj-evt-type" required>
-            <option value="Contacts">Contacts</option>
-            <option value="RDV">RDV</option>
-            <option value="Offres">Offres</option>
-            <option value="Inscriptions">Inscriptions</option>
-            <option value="Démos">Démos</option>
-            <option value="Autre">Autre</option>
-          </select>
-        </div></div>
-        <div class="form-row"><div class="form-field"><label>Description</label><input type="text" id="obj-evt-desc"></div></div>
-        <div class="form-row form-row-2">
-          <div class="form-field"><label>Cible</label><input type="number" id="obj-evt-cible" min="0" value="0"></div>
-          <div class="form-field"><label>Réalisé</label><input type="number" id="obj-evt-realise" min="0"></div>
-        </div>
-        <div class="form-row"><div class="form-field"><label>Commentaire</label><input type="text" id="obj-evt-commentaire"></div></div>
-        <div class="modal-footer">
-          <button type="button" id="btn-delete-obj-evt" class="btn-danger hidden">Supprimer</button>
-          <button type="submit" class="btn-primary">Enregistrer</button>
-        </div>
-      </form>
-    </div>
-  </div>
+  <div id="modal-objectif-evt" class="modal hidden"><div class="modal-content modal-small"><div class="modal-header"><h3 id="modal-obj-evt-title">Objectif</h3><button id="modal-obj-evt-close">✕</button></div><form id="obj-evt-form" class="clean-form"><input type="hidden" id="obj-evt-id"><input type="hidden" id="obj-evt-evt-id"><div class="form-row"><div class="form-field"><label>Type *</label><select id="obj-evt-type" required><option value="Contacts">Contacts</option><option value="RDV">RDV</option><option value="Offres">Offres</option><option value="Inscriptions">Inscriptions</option><option value="Autre">Autre</option></select></div></div><div class="form-row"><div class="form-field"><label>Description</label><input type="text" id="obj-evt-desc"></div></div><div class="form-row form-row-2"><div class="form-field"><label>Cible</label><input type="number" id="obj-evt-cible" min="0" value="0"></div><div class="form-field"><label>Réalisé</label><input type="number" id="obj-evt-realise" min="0"></div></div><div class="form-row"><div class="form-field"><label>Commentaire</label><input type="text" id="obj-evt-commentaire"></div></div><div class="modal-footer"><button type="button" id="btn-delete-obj-evt" class="btn-danger hidden">Supprimer</button><button type="submit" class="btn-primary">OK</button></div></form></div></div>
 
-  <!-- Modale Source (création depuis calendrier) -->
-  <div id="modal-source" class="modal hidden">
-    <div class="modal-content modal-small">
-      <div class="modal-header"><h3 id="modal-source-title">Nouvelle source</h3><button id="modal-source-close">✕</button></div>
-      <form id="source-form" class="clean-form">
-        <input type="hidden" id="source-id">
-        <div class="form-row"><div class="form-field"><label>Nom *</label><input type="text" id="source-nom" required></div></div>
-        <div class="form-row form-row-2">
-          <div class="form-field"><label>Groupe</label>
-            <select id="source-groupe">
-              <option value="EVENEMENT">Événement</option>
-              <option value="SALONS">Salon</option>
-              <option value="RESEAU_PRO">Réseau pro</option>
-              <option value="ALUMNIS">Alumnis</option>
-              <option value="FIDELISATION">Fidélisation</option>
-              <option value="RESEAU_ICAM">Réseau ICAM</option>
-            </select>
-          </div>
-          <div class="form-field"><label>Source parente (sous-source)</label><select id="source-parent"><option value="">— Aucun parent</option></select></div>
-        </div>
-        <div class="form-row"><div class="form-field"><label>Catégorie</label><input type="text" id="source-categorie"></div></div>
-        <div class="form-row"><div class="form-field"><label><input type="checkbox" id="source-has-checklist"> Cette source aura sa propre checklist</label></div></div>
-        <div class="modal-footer">
-          <button type="submit" class="btn-primary">Enregistrer</button>
-        </div>
-      </form>
-    </div>
-  </div>
+  <!-- Modale Source -->
+  <div id="modal-source" class="modal hidden"><div class="modal-content modal-small"><div class="modal-header"><h3 id="modal-source-title">Source</h3><button id="modal-source-close">✕</button></div><form id="source-form" class="clean-form"><input type="hidden" id="source-id"><div class="form-row"><div class="form-field"><label>Nom *</label><input type="text" id="source-nom" required></div></div><div class="form-row form-row-2"><div class="form-field"><label>Groupe</label><select id="source-groupe"><option value="EVENEMENT">Événement</option><option value="SALONS">Salon</option><option value="RESEAU_PRO">Réseau pro</option><option value="ALUMNIS">Alumnis</option><option value="FIDELISATION">Fidélisation</option><option value="RESEAU_ICAM">Réseau ICAM</option></select></div><div class="form-field"><label>Parent</label><select id="source-parent"><option value="">— Aucun</option></select></div></div><div class="form-row"><div class="form-field"><label>Catégorie</label><input type="text" id="source-categorie"></div></div><div class="modal-footer"><button type="submit" class="btn-primary">OK</button></div></form></div></div>
 
   <!-- Modale Jalon MSI -->
-  <div id="modal-jalon" class="modal hidden">
-    <div class="modal-content modal-small">
-      <div class="modal-header"><h3 id="modal-jalon-title">Nouveau jalon MSI</h3><button id="modal-jalon-close">✕</button></div>
-      <form id="jalon-form" class="clean-form">
-        <input type="hidden" id="jalon-id">
-        <div class="form-row"><div class="form-field"><label>Titre *</label><input type="text" id="jalon-titre" required placeholder="Ex : Revue projet T2"></div></div>
-        <div class="form-row form-row-2">
-          <div class="form-field"><label>Type</label>
-            <select id="jalon-type">
-              <option>Revue projet</option>
-              <option>Intervention client</option>
-              <option>Soutenance</option>
-              <option>Livrable</option>
-              <option>Réunion</option>
-              <option>Autre</option>
-            </select>
-          </div>
-          <div class="form-field"><label>Couleur</label>
-            <select id="jalon-couleur">
-              <option value="#A32D2D">Rouge</option>
-              <option value="#1F3864">Bleu</option>
-              <option value="#1D9E75">Vert</option>
-              <option value="#BA7517">Orange</option>
-              <option value="#7F77DD">Violet</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-row form-row-2">
-          <div class="form-field"><label>Date début *</label><input type="date" id="jalon-date" required></div>
-          <div class="form-field"><label>Date fin (optionnel)</label><input type="date" id="jalon-date-fin"></div>
-        </div>
-        <div class="form-row"><div class="form-field"><label>Description</label><textarea id="jalon-desc" rows="2"></textarea></div></div>
-        <div class="modal-footer">
-          <button type="button" id="btn-delete-jalon" class="btn-danger hidden">Supprimer</button>
-          <button type="submit" class="btn-primary">Enregistrer</button>
-        </div>
-      </form>
-    </div>
-  </div>
+  <div id="modal-jalon" class="modal hidden"><div class="modal-content modal-small"><div class="modal-header"><h3 id="modal-jalon-title">Jalon MSI</h3><button id="modal-jalon-close">✕</button></div><form id="jalon-form" class="clean-form"><input type="hidden" id="jalon-id"><div class="form-row"><div class="form-field"><label>Titre *</label><input type="text" id="jalon-titre" required></div></div><div class="form-row form-row-2"><div class="form-field"><label>Type</label><select id="jalon-type"><option>Revue projet</option><option>Intervention client</option><option>Soutenance</option><option>Livrable</option><option>Réunion</option><option>Autre</option></select></div><div class="form-field"><label>Couleur</label><select id="jalon-couleur"><option value="#A32D2D">Rouge</option><option value="#1F3864">Bleu</option><option value="#1D9E75">Vert</option><option value="#BA7517">Orange</option><option value="#7F77DD">Violet</option></select></div></div><div class="form-row form-row-2"><div class="form-field"><label>Date début *</label><input type="date" id="jalon-date" required></div><div class="form-field"><label>Date fin</label><input type="date" id="jalon-date-fin"></div></div><div class="form-row"><div class="form-field"><label>Description</label><textarea id="jalon-desc" rows="2"></textarea></div></div><div class="modal-footer"><button type="button" id="btn-delete-jalon" class="btn-danger hidden">Supprimer</button><button type="submit" class="btn-primary">OK</button></div></form></div></div>
 
-  <!-- Modale période -->
-  <div id="modal-periode" class="modal hidden">
-    <div class="modal-content modal-small">
-      <div class="modal-header"><h3>Ajouter une période</h3><button id="modal-periode-close">✕</button></div>
-      <form id="periode-form" class="clean-form">
-        <div class="form-row"><div class="form-field"><label>Code *</label><input type="text" id="periode-code" required></div></div>
-        <div class="form-row"><div class="form-field"><label>Commentaire</label><input type="text" id="periode-commentaire"></div></div>
-        <div class="modal-footer"><button type="submit" class="btn-primary">Ajouter</button></div>
-      </form>
-    </div>
-  </div>
+  <!-- Modale Période -->
+  <div id="modal-periode" class="modal hidden"><div class="modal-content modal-small"><div class="modal-header"><h3>Période</h3><button id="modal-periode-close">✕</button></div><form id="periode-form" class="clean-form"><div class="form-row"><div class="form-field"><label>Code *</label><input type="text" id="periode-code" required></div></div><div class="form-row"><div class="form-field"><label>Commentaire</label><input type="text" id="periode-commentaire"></div></div><div class="modal-footer"><button type="submit" class="btn-primary">Ajouter</button></div></form></div></div>
 
   <div id="toast" class="toast hidden"></div>
 

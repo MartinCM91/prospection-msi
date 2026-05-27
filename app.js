@@ -491,7 +491,7 @@ function openModalCible(prefill = {}) {
   domSel.addEventListener('change', () => updateColonneSections(parseInt(domSel.value)));
 
   const respSel = document.getElementById('cible-responsable');
-  respSel.innerHTML = '<option value="">—</option>';
+  respSel.innerHTML = '<option value="">-</option>';
   state.utilisateurs.forEach(u => {
     const o = document.createElement('option');
     o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
@@ -500,7 +500,7 @@ function openModalCible(prefill = {}) {
   });
 
   const srcSel = document.getElementById('cible-source');
-  srcSel.innerHTML = '<option value="">—</option>';
+  srcSel.innerHTML = '<option value="">-</option>';
   state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = (s.parent_id ? '  └ ' : '') + s.nom;
@@ -569,7 +569,7 @@ function updateColonneSections(colNum) {
 }
 
   const respSel = document.getElementById('cible-responsable');
-  respSel.innerHTML = '<option value="">—</option>';
+  respSel.innerHTML = '<option value="">-</option>';
   state.utilisateurs.forEach(u => {
     const o = document.createElement('option');
     o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
@@ -578,7 +578,7 @@ function updateColonneSections(colNum) {
   });
 
   const srcSel = document.getElementById('cible-source');
-  srcSel.innerHTML = '<option value="">—</option>';
+  srcSel.innerHTML = '<option value="">-</option>';
   state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = (s.parent_id ? '  └ ' : '') + s.nom;
@@ -588,7 +588,7 @@ function updateColonneSections(colNum) {
 
 function updateResultatsSelect(domId) {
   const sel = document.getElementById('cible-resultat-select');
-  sel.innerHTML = '<option value="">— Choisir dans la liste —</option>';
+  sel.innerHTML = '<option value="">- Choisir dans la liste -</option>';
   state.resultatsAttendus.filter(r => r.domaine_id === domId).forEach(r => {
     if (!state.tempResultats.includes(r.libelle)) {
       const o = document.createElement('option');
@@ -753,7 +753,7 @@ function renderEventObjectifsList(evtId) {
   objs.forEach(o => {
     const div = document.createElement('div');
     div.className = 'event-objectif-item';
-    const realise = o.nombre_realise !== null ? o.nombre_realise : '—';
+    const realise = o.nombre_realise !== null ? o.nombre_realise : '-';
     div.innerHTML = `<div class="event-objectif-item-content"><div class="event-objectif-item-type">${o.type_objectif}</div><div class="event-objectif-item-desc">${o.description || '(sans description)'}</div></div><div class="event-objectif-item-stats"><strong>${realise}</strong> / ${o.nombre_cible}</div>`;
     div.addEventListener('click', () => openModalObjectifEvt(o));
     container.appendChild(div);
@@ -928,7 +928,7 @@ function openModalSource(prefill = {}) {
   document.getElementById('source-id').value = prefill.id || '';
   document.getElementById('modal-source-title').textContent = prefill.id ? 'Modifier source' : 'Nouvelle source';
   const parentSel = document.getElementById('source-parent');
-  parentSel.innerHTML = '<option value="">— Aucun parent (source principale)</option>';
+  parentSel.innerHTML = '<option value="">- Aucun parent (source principale)</option>';
   state.sources.filter(s => !s.parent_id && s.id !== prefill.id).forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = s.nom;
@@ -1169,7 +1169,7 @@ function renderKanbanCard(c, col, body) {
   if (src) html += `<div class="kanban-card-resultat" style="font-size:10px;">${src.nom}</div>`;
 
   html += `<div class="kanban-card-meta">`;
-  html += `<span>${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '—'}</span>`;
+  html += `<span>${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '-'}</span>`;
   if (col.numero === 5 && c.statut_avancement) {
     html += `<span class="kanban-card-statut">${c.statut_avancement}</span>`;
   } else if (c.date_echeance) {
@@ -1255,7 +1255,7 @@ function renderDashboard() {
   document.getElementById('kpi-prop-status').textContent = propMois >= state.kpi_prop_cible ? 'Atteint' : 'Retard';
 
   document.getElementById('kpi-contrats').textContent = ciblesSigneesAvecDatePeriode.length + (ciblesSigneesSansDatePeriode.length > 0 ? ' + ' + ciblesSigneesSansDatePeriode.length + ' ⏳' : '');
-  document.getElementById('kpi-contrats-obj').textContent = periodeFiltre ? 'Période ' + periodeFiltre + ' — Objectif ' + msiObjectif : 'Toutes périodes — Objectif ' + msiObjectif;
+  document.getElementById('kpi-contrats-obj').textContent = periodeFiltre ? 'Période ' + periodeFiltre + ' - Objectif ' + msiObjectif : 'Toutes périodes - Objectif ' + msiObjectif;
   const cardContrats = document.getElementById('kpi-card-contrats');
   const contratsOk = msiObjectif > 0 && ciblesSigneesPeriode.length >= msiObjectif;
   cardContrats.className = 'kpi-card-big ' + (contratsOk ? 'kpi-card-ok' : '');
@@ -1341,7 +1341,7 @@ function renderDashboard() {
     const jours = Math.floor((new Date() - new Date(c.date_echeance)) / 86400000);
     const tr = document.createElement('tr');
     tr.className = 'retard';
-    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td>${col?.libelle || '—'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><strong>${jours} j</strong></td>`;
+    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td>${col?.libelle || '-'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><strong>${jours} j</strong></td>`;
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => openModalCible(c));
     tbodyR.appendChild(tr);
@@ -1576,7 +1576,7 @@ function renderTachesT0T1() {
     const tr = document.createElement('tr');
     if (statut.startsWith('⚠️')) tr.className = 'retard';
     else if (statut.startsWith('🟡')) tr.className = 'retard-soft';
-    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td>${col?.libelle || '—'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><span class="badge ${cls}">${statut}</span></td>`;
+    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td>${col?.libelle || '-'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><span class="badge ${cls}">${statut}</span></td>`;
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => openModalCible(c));
     tbody.appendChild(tr);
@@ -1798,7 +1798,7 @@ function renderMonthZoom() {
         const src = state.sources.find(s => s.id === item.source_id);
         let datesStr = new Date(item.date_evenement).toLocaleDateString('fr-FR');
         if (item.date_fin && item.date_fin !== item.date_evenement) datesStr += ' → ' + new Date(item.date_fin).toLocaleDateString('fr-FR');
-        html += `<div class="month-list-item" data-evt-id="${item.id}"><div class="month-list-date">${datesStr}</div><div class="month-list-content"><div class="month-list-titre">${item.quoi}</div><div class="month-list-meta">${src?.nom || '—'} · ${item.type_evenement || 'Extérieur'}${item.lieu_libre ? ' · '+item.lieu_libre : (item.lieu_ville ? ' · '+item.lieu_ville : '')}</div></div></div>`;
+        html += `<div class="month-list-item" data-evt-id="${item.id}"><div class="month-list-date">${datesStr}</div><div class="month-list-content"><div class="month-list-titre">${item.quoi}</div><div class="month-list-meta">${src?.nom || '-'} · ${item.type_evenement || 'Extérieur'}${item.lieu_libre ? ' · '+item.lieu_libre : (item.lieu_ville ? ' · '+item.lieu_ville : '')}</div></div></div>`;
       } else {
         const icon = JALON_ICONS[item.type_jalon] || '📍';
         let datesStr = new Date(item.date_debut).toLocaleDateString('fr-FR');
@@ -1881,7 +1881,7 @@ function renderEventsTable() {
     if (ev.date_fin && ev.date_fin !== ev.date_evenement) datesStr += ' → ' + new Date(ev.date_fin).toLocaleDateString('fr-FR');
     let lieu = ev.lieu_libre || [ev.lieu_ville, ev.lieu_code_postal].filter(x => x).join(' ');
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${datesStr}</td><td><span class="badge ${ev.type_evenement === 'Intérieur' ? 'badge-info' : 'badge-warning'}">${ev.type_evenement || 'Extérieur'}</span></td><td>${ev.quoi}</td><td>${src?.nom || '—'}</td><td>${lieu || '—'}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td><span class="badge ${cls}">${statut}</span></td><td><button class="btn-link" data-id="${ev.id}">Modifier</button></td>`;
+    tr.innerHTML = `<td>${datesStr}</td><td><span class="badge ${ev.type_evenement === 'Intérieur' ? 'badge-info' : 'badge-warning'}">${ev.type_evenement || 'Extérieur'}</span></td><td>${ev.quoi}</td><td>${src?.nom || '-'}</td><td>${lieu || '-'}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td><span class="badge ${cls}">${statut}</span></td><td><button class="btn-link" data-id="${ev.id}">Modifier</button></td>`;
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.btn-link').forEach(btn => {
@@ -2140,7 +2140,7 @@ function renderRevueContent() {
   }
 
   let html = `
-    <h3 style="margin-top:0;">Rétrospective — ${label}</h3>
+    <h3 style="margin-top:0;">Rétrospective - ${label}</h3>
     <div class="revue-kpi-grid">
       <div class="revue-kpi-card">
         <div class="revue-kpi-label">Appels / Contacts</div>

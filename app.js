@@ -116,7 +116,8 @@ async function loadData() {
     sb.from('evenement_objectifs').select('*').order('ordre_affichage'),
     sb.from('kpi_objectifs').select('*'),
     sb.from('jalons_msi').select('*').order('date_debut'),
-    sb.from('cible_resultats_attendus').select('*')
+    sb.from('cible_resultats_attendus').select('*'),
+    sb.from('projets_msi').select('*').order('created_at')
   ]);
   state.produits = results[0].data || [];
   state.sources = results[1].data || [];
@@ -133,6 +134,7 @@ async function loadData() {
   state.kpiObjectifs = results[12].data || [];
   state.jalons = results[13].data || [];
   state.cibleResultats = results[14].data || [];
+  state.projetsMsi = results[15]?.data || [];
 }
 
 function formatEuro(n) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n || 0); }
@@ -491,7 +493,7 @@ function openModalCible(prefill = {}) {
   domSel.addEventListener('change', () => updateColonneSections(parseInt(domSel.value)));
 
   const respSel = document.getElementById('cible-responsable');
-  respSel.innerHTML = '<option value="">-</option>';
+  respSel.innerHTML = '<option value="">—</option>';
   state.utilisateurs.forEach(u => {
     const o = document.createElement('option');
     o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
@@ -500,7 +502,7 @@ function openModalCible(prefill = {}) {
   });
 
   const srcSel = document.getElementById('cible-source');
-  srcSel.innerHTML = '<option value="">-</option>';
+  srcSel.innerHTML = '<option value="">—</option>';
   state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = (s.parent_id ? '  └ ' : '') + s.nom;
@@ -551,6 +553,15 @@ function openModalCible(prefill = {}) {
   }
 
   updateColonneSections(currentCol);
+  // Charger les projets MSI existants
+  state.tempProjetsMsi = [];
+  if (prefill.id) {
+    state.tempProjetsMsi = (state.projetsMsi || []).filter(p => p.cible_id === prefill.id).map(p => ({
+      id: p.id, periode_msi: p.periode_msi, montant: p.montant || 0, nb_equipes: p.nb_equipes || 1, intitule: p.intitule || ''
+    }));
+  }
+  renderProjetsMsiList();
+  initProjetsMsiListeners();
   document.getElementById('modal-cible').classList.remove('hidden');
 }
 
@@ -560,16 +571,116 @@ function updateColonneSections(colNum) {
   const s3 = document.getElementById('section-col-3');
   const s4 = document.getElementById('section-col-4');
   const s5 = document.getElementById('section-avancement');
+  const sProjets = document.getElementById('section-projets-msi');
   if (s1) s1.style.display = (colNum === 1) ? 'flex' : 'none';
   if (s2) s2.style.display = (colNum === 2) ? 'flex' : 'none';
   if (s3) s3.style.display = (colNum === 3) ? 'flex' : 'none';
   if (s4) s4.style.display = (colNum === 4) ? 'flex' : 'none';
   if (s5) s5.style.display = (colNum >= 5) ? 'flex' : 'none';
+  if (sProjets) sProjets.style.display = (colNum >= 5) ? 'flex' : 'none';
   document.getElementById('cible-etape').value = colNum;
 }
 
+// ============================================================
+// PROJETS MSI (sous-formulaire col 5)
+// ============================================================
+function initProjetsMsiListeners() {
+  document.getElementById('btn-add-projet-msi')?.addEventListener('click', () => {
+    state.tempProjetsMsi.push({ periode_msi: '2627A', montant: 0, nb_equipes: 1, intitule: '' });
+    renderProjetsMsiList();
+  });
+}
+
+function renderProjetsMsiList() {
+  const container = document.getElementById('projets-msi-list');
+  if (!container) return;
+  if (state.tempProjetsMsi.length === 0) {
+    container.innerHTML = '<p class="hint" style="color:#888780;margin:8px 0;">Aucun projet MSI. Cliquez "+ Projet MSI" pour en ajouter.</p>';
+    return;
+  }
+  container.innerHTML = state.tempProjetsMsi.map((p, i) => `
+    <div class="projet-msi-card" data-index="${i}">
+      <div class="projet-msi-header">
+        <span class="projet-msi-num">${i + 1}</span>
+        <strong>${p.intitule || 'Projet MSI ' + (i + 1)}</strong>
+        <span class="projet-msi-periode">${p.periode_msi}</span>
+        <span class="projet-msi-montant">${formatEuro(p.montant)} €</span>
+        <span class="projet-msi-equipes">${p.nb_equipes} éq.</span>
+        <button type="button" class="btn-projet-msi-edit" data-index="${i}">✏️</button>
+        <button type="button" class="btn-projet-msi-delete" data-index="${i}">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+  container.querySelectorAll('.btn-projet-msi-edit').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      editProjetMsi(parseInt(btn.dataset.index));
+    });
+  });
+  container.querySelectorAll('.btn-projet-msi-delete').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      state.tempProjetsMsi.splice(parseInt(btn.dataset.index), 1);
+      renderProjetsMsiList();
+    });
+  });
+}
+
+function editProjetMsi(index) {
+  const p = state.tempProjetsMsi[index];
+  const container = document.getElementById('projets-msi-list');
+  const card = container.querySelector(`[data-index="${index}"]`);
+  if (!card) return;
+  card.innerHTML = `
+    <div class="projet-msi-edit-form">
+      <div class="form-row form-row-2">
+        <div class="form-field"><label>Intitulé projet</label><input type="text" class="pm-intitule" value="${p.intitule || ''}" placeholder="Ex: Projet amélioration continue"></div>
+        <div class="form-field"><label>Période MSI</label><select class="pm-periode">
+          <option value="2526B" ${p.periode_msi==='2526B'?'selected':''}>2526B</option>
+          <option value="2627A" ${p.periode_msi==='2627A'?'selected':''}>2627A</option>
+          <option value="2627B" ${p.periode_msi==='2627B'?'selected':''}>2627B</option>
+          <option value="2728A" ${p.periode_msi==='2728A'?'selected':''}>2728A</option>
+        </select></div>
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-field"><label>Montant (€)</label><input type="number" class="pm-montant" min="0" step="100" value="${p.montant || 0}"></div>
+        <div class="form-field"><label>Nb équipes ICAM</label><input type="number" class="pm-equipes" min="1" value="${p.nb_equipes || 1}"></div>
+      </div>
+      <div style="text-align:right;margin-top:6px;">
+        <button type="button" class="btn-primary btn-pm-save" style="font-size:12px;padding:5px 14px;">OK</button>
+      </div>
+    </div>
+  `;
+  card.querySelector('.btn-pm-save').addEventListener('click', () => {
+    state.tempProjetsMsi[index] = {
+      ...p,
+      intitule: card.querySelector('.pm-intitule').value,
+      periode_msi: card.querySelector('.pm-periode').value,
+      montant: parseFloat(card.querySelector('.pm-montant').value) || 0,
+      nb_equipes: parseInt(card.querySelector('.pm-equipes').value) || 1
+    };
+    renderProjetsMsiList();
+  });
+}
+
+async function saveProjetsMsi(cibleId) {
+  // Supprimer les anciens projets
+  await sb.from('projets_msi').delete().eq('cible_id', cibleId);
+  // Insérer les nouveaux
+  if (state.tempProjetsMsi.length > 0) {
+    const rows = state.tempProjetsMsi.map(p => ({
+      cible_id: cibleId,
+      periode_msi: p.periode_msi,
+      montant: p.montant || 0,
+      nb_equipes: p.nb_equipes || 1,
+      intitule: p.intitule || null
+    }));
+    await sb.from('projets_msi').insert(rows);
+  }
+}
+
   const respSel = document.getElementById('cible-responsable');
-  respSel.innerHTML = '<option value="">-</option>';
+  respSel.innerHTML = '<option value="">—</option>';
   state.utilisateurs.forEach(u => {
     const o = document.createElement('option');
     o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
@@ -578,7 +689,7 @@ function updateColonneSections(colNum) {
   });
 
   const srcSel = document.getElementById('cible-source');
-  srcSel.innerHTML = '<option value="">-</option>';
+  srcSel.innerHTML = '<option value="">—</option>';
   state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = (s.parent_id ? '  └ ' : '') + s.nom;
@@ -588,7 +699,7 @@ function updateColonneSections(colNum) {
 
 function updateResultatsSelect(domId) {
   const sel = document.getElementById('cible-resultat-select');
-  sel.innerHTML = '<option value="">- Choisir dans la liste -</option>';
+  sel.innerHTML = '<option value="">— Choisir dans la liste —</option>';
   state.resultatsAttendus.filter(r => r.domaine_id === domId).forEach(r => {
     if (!state.tempResultats.includes(r.libelle)) {
       const o = document.createElement('option');
@@ -688,6 +799,8 @@ async function saveCible(e) {
         await sb.from('resultats_attendus').upsert({ domaine_id: domaineId, libelle: r, ordre_affichage: 999 }, { onConflict: 'domaine_id,libelle' });
       }
     }
+    // Sauvegarder les projets MSI (col 5)
+    await saveProjetsMsi(cibleId);
   }
   showToast(id ? 'Tâche modifiée' : 'Tâche créée', 'success');
   closeM('modal-cible');
@@ -753,7 +866,7 @@ function renderEventObjectifsList(evtId) {
   objs.forEach(o => {
     const div = document.createElement('div');
     div.className = 'event-objectif-item';
-    const realise = o.nombre_realise !== null ? o.nombre_realise : '-';
+    const realise = o.nombre_realise !== null ? o.nombre_realise : '—';
     div.innerHTML = `<div class="event-objectif-item-content"><div class="event-objectif-item-type">${o.type_objectif}</div><div class="event-objectif-item-desc">${o.description || '(sans description)'}</div></div><div class="event-objectif-item-stats"><strong>${realise}</strong> / ${o.nombre_cible}</div>`;
     div.addEventListener('click', () => openModalObjectifEvt(o));
     container.appendChild(div);
@@ -928,7 +1041,7 @@ function openModalSource(prefill = {}) {
   document.getElementById('source-id').value = prefill.id || '';
   document.getElementById('modal-source-title').textContent = prefill.id ? 'Modifier source' : 'Nouvelle source';
   const parentSel = document.getElementById('source-parent');
-  parentSel.innerHTML = '<option value="">- Aucun parent (source principale)</option>';
+  parentSel.innerHTML = '<option value="">— Aucun parent (source principale)</option>';
   state.sources.filter(s => !s.parent_id && s.id !== prefill.id).forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = s.nom;
@@ -1169,7 +1282,7 @@ function renderKanbanCard(c, col, body) {
   if (src) html += `<div class="kanban-card-resultat" style="font-size:10px;">${src.nom}</div>`;
 
   html += `<div class="kanban-card-meta">`;
-  html += `<span>${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '-'}</span>`;
+  html += `<span>${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '—'}</span>`;
   if (col.numero === 5 && c.statut_avancement) {
     html += `<span class="kanban-card-statut">${c.statut_avancement}</span>`;
   } else if (c.date_echeance) {
@@ -1180,6 +1293,16 @@ function renderKanbanCard(c, col, body) {
   }
   if (col.numero === 5 && c.montant_estime > 0) html += `<span class="kanban-card-montant">${formatEuro(c.montant_estime)} €</span>`;
   html += `</div>`;
+
+  // Projets MSI sur la carte (col 5)
+  const projetsCarte = (state.projetsMsi || []).filter(p => p.cible_id === c.id);
+  if (projetsCarte.length > 0) {
+    html += `<div class="kanban-card-projets">`;
+    projetsCarte.forEach(p => {
+      html += `<div class="kanban-card-projet-tag"><span class="projet-msi-periode">${p.periode_msi}</span> ${p.intitule ? '<em>' + p.intitule + '</em>' : ''} <strong>${formatEuro(p.montant)} €</strong> · ${p.nb_equipes || 1} éq.</div>`;
+    });
+    html += `</div>`;
+  }
 
   card.innerHTML = html;
 
@@ -1225,13 +1348,22 @@ function renderDashboard() {
   const ciblesSigneesAvecDate = ciblesSignees.filter(c => c.date_signature);
   const ciblesSigneesSansDate = ciblesSignees.filter(c => !c.date_signature);
 
-  // Filtre période MSI pour le KPI contrats signés
+  // Filtre période MSI pour le KPI contrats signés — basé sur projets MSI
   const periodeFiltre = document.getElementById('kpi-periode-filtre')?.value || '';
-  const ciblesSigneesPeriode = periodeFiltre ? ciblesSignees.filter(c => c.periode_msi === periodeFiltre) : ciblesSignees;
-  const ciblesSigneesAvecDatePeriode = ciblesSigneesPeriode.filter(c => c.date_signature);
-  const ciblesSigneesSansDatePeriode = ciblesSigneesPeriode.filter(c => !c.date_signature);
+  // Projets MSI issus des tâches signées du produit actif
+  const projetsMsiActifs = (state.projetsMsi || []).filter(p => {
+    const cible = cibles.find(c => c.id === p.cible_id);
+    return cible && cible.statut_avancement === 'Signé';
+  });
+  const projetsMsiPeriode = periodeFiltre ? projetsMsiActifs.filter(p => p.periode_msi === periodeFiltre) : projetsMsiActifs;
+  const nbProjetsMsiPeriode = projetsMsiPeriode.reduce((s, p) => s + (p.nb_equipes || 1), 0);
+  const caProjetsPeriode = projetsMsiPeriode.reduce((s, p) => s + (p.montant || 0), 0);
 
-  const caSigne = ciblesSigneesPeriode.reduce((s,c) => s + (c.montant_estime || 0), 0);
+  // Fallback : si pas de projets MSI, compter les tâches signées comme avant
+  const ciblesSigneesPeriode = periodeFiltre ? ciblesSignees.filter(c => c.periode_msi === periodeFiltre) : ciblesSignees;
+  const useProjetsMsi = projetsMsiActifs.length > 0;
+  const nbSignesPeriode = useProjetsMsi ? nbProjetsMsiPeriode : ciblesSigneesPeriode.length;
+  const caSigne = useProjetsMsi ? caProjetsPeriode : ciblesSigneesPeriode.reduce((s,c) => s + (c.montant_estime || 0), 0);
   const caEnCours = ciblesEnAvancement.filter(c => !['Signé','Perdu'].includes(c.statut_avancement)).reduce((s,c) => s + ((c.montant_estime || 0) * (c.niveau_confiance || 0)), 0);
   const atteinteCA = caObjectif > 0 ? Math.round((caSigne / caObjectif) * 100) : 0;
   const rdvSem = state.suivi.filter(s => s.type_activite === 'RDV qualifiés' && s.annee === state.annee && s.semaine === state.hebdo_semaine).reduce((sum,s) => sum + (s.nombre||0), 0);
@@ -1254,14 +1386,14 @@ function renderDashboard() {
   document.getElementById('kpi-prop-status').className = 'kpi-card-big-status ' + (propMois >= state.kpi_prop_cible ? 'ok' : 'alert');
   document.getElementById('kpi-prop-status').textContent = propMois >= state.kpi_prop_cible ? 'Atteint' : 'Retard';
 
-  document.getElementById('kpi-contrats').textContent = ciblesSigneesAvecDatePeriode.length + (ciblesSigneesSansDatePeriode.length > 0 ? ' + ' + ciblesSigneesSansDatePeriode.length + ' ⏳' : '');
-  document.getElementById('kpi-contrats-obj').textContent = periodeFiltre ? 'Période ' + periodeFiltre + ' - Objectif ' + msiObjectif : 'Toutes périodes - Objectif ' + msiObjectif;
+  document.getElementById('kpi-contrats').textContent = nbSignesPeriode + (ciblesSigneesSansDate.length > 0 ? ' + ' + ciblesSigneesSansDate.length + ' ⏳' : '') + (useProjetsMsi ? ' projets' : '');
+  document.getElementById('kpi-contrats-obj').textContent = periodeFiltre ? 'Période ' + periodeFiltre + ' — Objectif ' + msiObjectif : 'Toutes périodes — Objectif ' + msiObjectif;
   const cardContrats = document.getElementById('kpi-card-contrats');
-  const contratsOk = msiObjectif > 0 && ciblesSigneesPeriode.length >= msiObjectif;
+  const contratsOk = msiObjectif > 0 && nbSignesPeriode >= msiObjectif;
   cardContrats.className = 'kpi-card-big ' + (contratsOk ? 'kpi-card-ok' : '');
   document.getElementById('kpi-contrats').className = 'kpi-card-big-value ' + (contratsOk ? 'kpi-ok' : '');
   const statusContrats = document.getElementById('kpi-contrats-status');
-  if (msiObjectif > 0) { statusContrats.className = 'kpi-card-big-status ' + (contratsOk ? 'ok' : 'alert'); statusContrats.textContent = contratsOk ? 'Atteint' : Math.round((ciblesSigneesPeriode.length/msiObjectif)*100) + ' %'; }
+  if (msiObjectif > 0) { statusContrats.className = 'kpi-card-big-status ' + (contratsOk ? 'ok' : 'alert'); statusContrats.textContent = contratsOk ? 'Atteint' : Math.round((nbSignesPeriode/msiObjectif)*100) + ' %'; }
   else statusContrats.textContent = '';
 
   // 6 KPI avec chiffres ET pourcentages
@@ -1289,7 +1421,7 @@ function renderDashboard() {
   setKpi('kpi6-rdv', 'kpi6-rdv-obj', 'kpi6-rdv-pct', rdvAnnee, kpiCibles.rdv_qualifies || 0);
   setKpi('kpi6-propales', 'kpi6-propales-obj', 'kpi6-propales-pct', propAnnee, kpiCibles.propales_redigees || 0);
   document.getElementById('kpi6-encours').textContent = ciblesEnNegociation.length;
-  setKpi('kpi6-signees', 'kpi6-signees-obj', 'kpi6-signees-pct', ciblesSigneesPeriode.length, kpiCibles.offres_signees || 0);
+  setKpi('kpi6-signees', 'kpi6-signees-obj', 'kpi6-signees-pct', nbSignesPeriode, kpiCibles.offres_signees || 0);
   const elAttenteDate = document.getElementById('kpi6-attente-date');
   if (elAttenteDate) elAttenteDate.textContent = ciblesSigneesSansDate.length;
   document.getElementById('kpi6-perdues').textContent = ciblesPerdues.length;
@@ -1341,7 +1473,7 @@ function renderDashboard() {
     const jours = Math.floor((new Date() - new Date(c.date_echeance)) / 86400000);
     const tr = document.createElement('tr');
     tr.className = 'retard';
-    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td>${col?.libelle || '-'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><strong>${jours} j</strong></td>`;
+    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td>${col?.libelle || '—'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><strong>${jours} j</strong></td>`;
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => openModalCible(c));
     tbodyR.appendChild(tr);
@@ -1576,7 +1708,7 @@ function renderTachesT0T1() {
     const tr = document.createElement('tr');
     if (statut.startsWith('⚠️')) tr.className = 'retard';
     else if (statut.startsWith('🟡')) tr.className = 'retard-soft';
-    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td>${col?.libelle || '-'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><span class="badge ${cls}">${statut}</span></td>`;
+    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td>${col?.libelle || '—'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><span class="badge ${cls}">${statut}</span></td>`;
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => openModalCible(c));
     tbody.appendChild(tr);
@@ -1798,7 +1930,7 @@ function renderMonthZoom() {
         const src = state.sources.find(s => s.id === item.source_id);
         let datesStr = new Date(item.date_evenement).toLocaleDateString('fr-FR');
         if (item.date_fin && item.date_fin !== item.date_evenement) datesStr += ' → ' + new Date(item.date_fin).toLocaleDateString('fr-FR');
-        html += `<div class="month-list-item" data-evt-id="${item.id}"><div class="month-list-date">${datesStr}</div><div class="month-list-content"><div class="month-list-titre">${item.quoi}</div><div class="month-list-meta">${src?.nom || '-'} · ${item.type_evenement || 'Extérieur'}${item.lieu_libre ? ' · '+item.lieu_libre : (item.lieu_ville ? ' · '+item.lieu_ville : '')}</div></div></div>`;
+        html += `<div class="month-list-item" data-evt-id="${item.id}"><div class="month-list-date">${datesStr}</div><div class="month-list-content"><div class="month-list-titre">${item.quoi}</div><div class="month-list-meta">${src?.nom || '—'} · ${item.type_evenement || 'Extérieur'}${item.lieu_libre ? ' · '+item.lieu_libre : (item.lieu_ville ? ' · '+item.lieu_ville : '')}</div></div></div>`;
       } else {
         const icon = JALON_ICONS[item.type_jalon] || '📍';
         let datesStr = new Date(item.date_debut).toLocaleDateString('fr-FR');
@@ -1881,7 +2013,7 @@ function renderEventsTable() {
     if (ev.date_fin && ev.date_fin !== ev.date_evenement) datesStr += ' → ' + new Date(ev.date_fin).toLocaleDateString('fr-FR');
     let lieu = ev.lieu_libre || [ev.lieu_ville, ev.lieu_code_postal].filter(x => x).join(' ');
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${datesStr}</td><td><span class="badge ${ev.type_evenement === 'Intérieur' ? 'badge-info' : 'badge-warning'}">${ev.type_evenement || 'Extérieur'}</span></td><td>${ev.quoi}</td><td>${src?.nom || '-'}</td><td>${lieu || '-'}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td><span class="badge ${cls}">${statut}</span></td><td><button class="btn-link" data-id="${ev.id}">Modifier</button></td>`;
+    tr.innerHTML = `<td>${datesStr}</td><td><span class="badge ${ev.type_evenement === 'Intérieur' ? 'badge-info' : 'badge-warning'}">${ev.type_evenement || 'Extérieur'}</span></td><td>${ev.quoi}</td><td>${src?.nom || '—'}</td><td>${lieu || '—'}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td><span class="badge ${cls}">${statut}</span></td><td><button class="btn-link" data-id="${ev.id}">Modifier</button></td>`;
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.btn-link').forEach(btn => {
@@ -2140,7 +2272,7 @@ function renderRevueContent() {
   }
 
   let html = `
-    <h3 style="margin-top:0;">Rétrospective - ${label}</h3>
+    <h3 style="margin-top:0;">Rétrospective — ${label}</h3>
     <div class="revue-kpi-grid">
       <div class="revue-kpi-card">
         <div class="revue-kpi-label">Appels / Contacts</div>
@@ -2229,7 +2361,8 @@ function exportToExcel() {
     { 'N°': 7, 'Onglet': 'KPI cibles', 'Description': 'Objectifs des 6 KPI annuels' },
     { 'N°': 8, 'Onglet': 'Objectifs sources', 'Description': 'Cible de contacts par source et période' },
     { 'N°': 9, 'Onglet': 'Checklists', 'Description': 'Actions de préparation par source' },
-    { 'N°': 10, 'Onglet': 'Jalons MSI', 'Description': 'Jalons MSI (revues, soutenances, livrables...)' }
+    { 'N°': 10, 'Onglet': 'Jalons MSI', 'Description': 'Jalons MSI (revues, soutenances, livrables...)' },
+    { 'N°': 11, 'Onglet': 'Projets MSI', 'Description': 'Projets MSI par contrat signé (période, montant, nb équipes)' }
   ];
   const wsSommaire = XLSX.utils.json_to_sheet(sommaireData);
   autoWidth(wsSommaire, sommaireData);
@@ -2420,9 +2553,30 @@ function exportToExcel() {
   autoWidth(ws10, jalonsData);
   XLSX.utils.book_append_sheet(wb, ws10, 'Jalons MSI');
 
+  // =============================================
+  // Onglet 11 : PROJETS MSI
+  // =============================================
+  const projetsData = (state.projetsMsi || []).map(p => {
+    const cible = state.cibles.find(c => c.id === p.cible_id);
+    const resp = cible ? state.utilisateurs.find(u => u.id === cible.responsable_id) : null;
+    return {
+      'Contrat (tâche)': cible?.description_action || cible?.intitule || '',
+      'Statut contrat': cible?.statut_avancement || '',
+      'Responsable': resp ? `${resp.prenom||''} ${resp.nom||''}`.trim() : '',
+      'Intitulé projet': p.intitule || '',
+      'Période MSI': p.periode_msi,
+      'Montant (€)': p.montant || 0,
+      'Nb équipes ICAM': p.nb_equipes || 1,
+      'Date signature contrat': cible?.date_signature || ''
+    };
+  });
+  const ws11 = XLSX.utils.json_to_sheet(projetsData);
+  autoWidth(ws11, projetsData);
+  XLSX.utils.book_append_sheet(wb, ws11, 'Projets MSI');
+
   const filename = `prospection_${prodLabel}_${dateStr}.xlsx`;
   XLSX.writeFile(wb, filename);
-  showToast(`Export "${filename}" généré avec 11 onglets`, 'success');
+  showToast(`Export "${filename}" généré avec 12 onglets`, 'success');
 }
 
 init();

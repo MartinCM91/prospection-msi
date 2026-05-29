@@ -21,7 +21,8 @@ const COLONNES_V8 = [
   { numero: 2, libelle: 'Phoning',                     sublabel: 'Appels',                   couleur: '#5DCAA5', type: 'domaine' },
   { numero: 3, libelle: 'RDV Qualification du besoin', sublabel: 'RDV / Smart Diag',         couleur: '#85B7EB', type: 'domaine' },
   { numero: 4, libelle: 'Rédaction de l\'offre',       sublabel: 'Propale en rédaction',     couleur: '#FAC775', type: 'redaction' },
-  { numero: 5, libelle: 'Avancement',                  sublabel: 'Négociation / Signé / Perdu', couleur: '#1D9E75', type: 'avancement' }
+  { numero: 5, libelle: 'Avancement',                  sublabel: 'Négociation / Signé / Perdu', couleur: '#1D9E75', type: 'avancement' },
+  { numero: 6, libelle: 'Finance',                     sublabel: 'Facturation / Relance',      couleur: '#E87461', type: 'finance' }
 ];
 
 const KPI_TYPES = [
@@ -117,7 +118,8 @@ async function loadData() {
     sb.from('kpi_objectifs').select('*'),
     sb.from('jalons_msi').select('*').order('date_debut'),
     sb.from('cible_resultats_attendus').select('*'),
-    sb.from('projets_msi').select('*').order('created_at')
+    sb.from('projets_msi').select('*').order('created_at'),
+    sb.from('paiements_phases').select('*').order('phase')
   ]);
   state.produits = results[0].data || [];
   state.sources = results[1].data || [];
@@ -135,6 +137,7 @@ async function loadData() {
   state.jalons = results[13].data || [];
   state.cibleResultats = results[14].data || [];
   state.projetsMsi = results[15]?.data || [];
+  state.paiementsPhases = results[16]?.data || [];
 }
 
 function formatEuro(n) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n || 0); }
@@ -151,7 +154,7 @@ function fillYearSelect(el, current, range = 3) {
 }
 
 function getColonneCible(cible) {
-  // statut_avancement défini = colonne 5
+  if (cible.etape === 6 || cible.type_finance) return 6;
   if (cible.statut_avancement && ['Négociation','Signé','Perdu','Communication','Financement','Paiement','CRM'].includes(cible.statut_avancement) && cible.etape >= 5) return 5;
   if (cible.etape === 4) return 4;
   if (cible.domaine_id) {
@@ -493,7 +496,7 @@ function openModalCible(prefill = {}) {
   domSel.addEventListener('change', () => updateColonneSections(parseInt(domSel.value)));
 
   const respSel = document.getElementById('cible-responsable');
-  respSel.innerHTML = '<option value="">-</option>';
+  respSel.innerHTML = '<option value="">—</option>';
   state.utilisateurs.forEach(u => {
     const o = document.createElement('option');
     o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
@@ -502,7 +505,7 @@ function openModalCible(prefill = {}) {
   });
 
   const srcSel = document.getElementById('cible-source');
-  srcSel.innerHTML = '<option value="">-</option>';
+  srcSel.innerHTML = '<option value="">—</option>';
   state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = (s.parent_id ? '  └ ' : '') + s.nom;
@@ -562,6 +565,17 @@ function openModalCible(prefill = {}) {
   }
   renderProjetsMsiList();
   initProjetsMsiListeners();
+  // Paiements par phase (col 6)
+  state.tempPaiements = [];
+  if (prefill.id) {
+    state.tempPaiements = (state.paiementsPhases || []).filter(p => p.cible_id === prefill.id).map(p => ({ ...p }));
+  }
+  if (prefill.type_finance) {
+    const tf = document.getElementById('cible-type-finance');
+    if (tf) tf.value = prefill.type_finance;
+  }
+  renderPaiementsPhasesList();
+  initPaiementsListeners();
   document.getElementById('modal-cible').classList.remove('hidden');
 }
 
@@ -572,12 +586,17 @@ function updateColonneSections(colNum) {
   const s4 = document.getElementById('section-col-4');
   const s5 = document.getElementById('section-avancement');
   const sProjets = document.getElementById('section-projets-msi');
+  const s6 = document.getElementById('section-col-6');
+  const fieldSource = document.getElementById('field-source');
   if (s1) s1.style.display = (colNum === 1) ? 'flex' : 'none';
   if (s2) s2.style.display = (colNum === 2) ? 'flex' : 'none';
   if (s3) s3.style.display = (colNum === 3) ? 'flex' : 'none';
   if (s4) s4.style.display = (colNum === 4) ? 'flex' : 'none';
-  if (s5) s5.style.display = (colNum >= 5) ? 'flex' : 'none';
-  if (sProjets) sProjets.style.display = (colNum >= 5) ? 'flex' : 'none';
+  if (s5) s5.style.display = (colNum === 5) ? 'flex' : 'none';
+  if (sProjets) sProjets.style.display = (colNum === 5) ? 'flex' : 'none';
+  if (s6) s6.style.display = (colNum === 6) ? 'flex' : 'none';
+  // Masquer source pour col 5 (signé) et col 6 (finance)
+  if (fieldSource) fieldSource.style.display = (colNum >= 5) ? 'none' : '';
   document.getElementById('cible-etape').value = colNum;
 }
 
@@ -664,9 +683,7 @@ function editProjetMsi(index) {
 }
 
 async function saveProjetsMsi(cibleId) {
-  // Supprimer les anciens projets
   await sb.from('projets_msi').delete().eq('cible_id', cibleId);
-  // Insérer les nouveaux
   if (state.tempProjetsMsi.length > 0) {
     const rows = state.tempProjetsMsi.map(p => ({
       cible_id: cibleId,
@@ -679,8 +696,108 @@ async function saveProjetsMsi(cibleId) {
   }
 }
 
+// ============================================================
+// PAIEMENTS PAR PHASE (col 6 Finance)
+// ============================================================
+function initPaiementsListeners() {
+  document.getElementById('btn-add-phase')?.addEventListener('click', () => {
+    const nextPhase = state.tempPaiements.length > 0 ? Math.max(...state.tempPaiements.map(p => p.phase)) + 1 : 1;
+    if (nextPhase > 5) { showToast('Maximum 5 phases', 'error'); return; }
+    state.tempPaiements.push({ phase: nextPhase, montant: 0, est_paye: false, date_echeance_paiement: '', date_paiement: '', notes: '' });
+    renderPaiementsPhasesList();
+  });
+}
+
+function renderPaiementsPhasesList() {
+  const container = document.getElementById('paiements-phases-list');
+  if (!container) return;
+  if (state.tempPaiements.length === 0) {
+    container.innerHTML = '<p class="hint" style="margin:8px 0;">Aucune phase. Cliquez "+ Ajouter une phase" pour commencer.</p>';
+    return;
+  }
+  const totalMontant = state.tempPaiements.reduce((s, p) => s + (p.montant || 0), 0);
+  const totalPaye = state.tempPaiements.filter(p => p.est_paye).reduce((s, p) => s + (p.montant || 0), 0);
+  const totalRestant = totalMontant - totalPaye;
+
+  let html = `<div class="paiements-summary">
+    <span>Total : <strong>${formatEuro(totalMontant)} €</strong></span>
+    <span class="paiement-paye">Payé : <strong>${formatEuro(totalPaye)} €</strong></span>
+    <span class="paiement-restant">Restant : <strong>${formatEuro(totalRestant)} €</strong></span>
+  </div>`;
+
+  html += state.tempPaiements.map((p, i) => {
+    const enRetard = !p.est_paye && p.date_echeance_paiement && new Date(p.date_echeance_paiement) < new Date();
+    return `<div class="paiement-phase-card ${p.est_paye ? 'paye' : ''} ${enRetard ? 'en-retard' : ''}" data-index="${i}">
+      <div class="paiement-phase-header">
+        <span class="paiement-phase-num">Phase ${p.phase}</span>
+        <label class="paiement-check-label"><input type="checkbox" class="paiement-check" data-index="${i}" ${p.est_paye ? 'checked' : ''}> ${p.est_paye ? '✅ Payé' : '⏳ Non payé'}</label>
+        ${enRetard ? '<span class="paiement-alerte">⚠️ EN RETARD</span>' : ''}
+        <button type="button" class="btn-paiement-delete" data-index="${i}">🗑️</button>
+      </div>
+      <div class="paiement-phase-body">
+        <div class="form-row form-row-2">
+          <div class="form-field"><label>Montant (€)</label><input type="number" class="pp-montant" data-index="${i}" min="0" step="0.01" value="${p.montant || 0}"></div>
+          <div class="form-field"><label>Échéance paiement</label><input type="date" class="pp-echeance" data-index="${i}" value="${p.date_echeance_paiement || ''}"></div>
+        </div>
+        <div class="form-row form-row-2">
+          <div class="form-field"><label>Date paiement effectif</label><input type="date" class="pp-date-paye" data-index="${i}" value="${p.date_paiement || ''}" ${!p.est_paye ? 'disabled' : ''}></div>
+          <div class="form-field"><label>Notes</label><input type="text" class="pp-notes" data-index="${i}" value="${p.notes || ''}"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = html;
+
+  // Listeners
+  container.querySelectorAll('.paiement-check').forEach(cb => {
+    cb.addEventListener('change', e => {
+      const idx = parseInt(e.target.dataset.index);
+      state.tempPaiements[idx].est_paye = e.target.checked;
+      if (e.target.checked && !state.tempPaiements[idx].date_paiement) {
+        state.tempPaiements[idx].date_paiement = new Date().toISOString().split('T')[0];
+      }
+      renderPaiementsPhasesList();
+    });
+  });
+  container.querySelectorAll('.pp-montant').forEach(el => {
+    el.addEventListener('change', e => { state.tempPaiements[parseInt(e.target.dataset.index)].montant = parseFloat(e.target.value) || 0; });
+  });
+  container.querySelectorAll('.pp-echeance').forEach(el => {
+    el.addEventListener('change', e => { state.tempPaiements[parseInt(e.target.dataset.index)].date_echeance_paiement = e.target.value; });
+  });
+  container.querySelectorAll('.pp-date-paye').forEach(el => {
+    el.addEventListener('change', e => { state.tempPaiements[parseInt(e.target.dataset.index)].date_paiement = e.target.value; });
+  });
+  container.querySelectorAll('.pp-notes').forEach(el => {
+    el.addEventListener('change', e => { state.tempPaiements[parseInt(e.target.dataset.index)].notes = e.target.value; });
+  });
+  container.querySelectorAll('.btn-paiement-delete').forEach(btn => {
+    btn.addEventListener('click', e => {
+      state.tempPaiements.splice(parseInt(btn.dataset.index), 1);
+      renderPaiementsPhasesList();
+    });
+  });
+}
+
+async function savePaiementsPhases(cibleId) {
+  await sb.from('paiements_phases').delete().eq('cible_id', cibleId);
+  if (state.tempPaiements.length > 0) {
+    const rows = state.tempPaiements.map(p => ({
+      cible_id: cibleId,
+      phase: p.phase,
+      montant: p.montant || 0,
+      est_paye: p.est_paye || false,
+      date_echeance_paiement: p.date_echeance_paiement || null,
+      date_paiement: p.date_paiement || null,
+      notes: p.notes || null
+    }));
+    await sb.from('paiements_phases').insert(rows);
+  }
+}
+
   const respSel = document.getElementById('cible-responsable');
-  respSel.innerHTML = '<option value="">-</option>';
+  respSel.innerHTML = '<option value="">—</option>';
   state.utilisateurs.forEach(u => {
     const o = document.createElement('option');
     o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
@@ -689,7 +806,7 @@ async function saveProjetsMsi(cibleId) {
   });
 
   const srcSel = document.getElementById('cible-source');
-  srcSel.innerHTML = '<option value="">-</option>';
+  srcSel.innerHTML = '<option value="">—</option>';
   state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = (s.parent_id ? '  └ ' : '') + s.nom;
@@ -699,7 +816,7 @@ async function saveProjetsMsi(cibleId) {
 
 function updateResultatsSelect(domId) {
   const sel = document.getElementById('cible-resultat-select');
-  sel.innerHTML = '<option value="">- Choisir dans la liste -</option>';
+  sel.innerHTML = '<option value="">— Choisir dans la liste —</option>';
   state.resultatsAttendus.filter(r => r.domaine_id === domId).forEach(r => {
     if (!state.tempResultats.includes(r.libelle)) {
       const o = document.createElement('option');
@@ -772,7 +889,8 @@ async function saveCible(e) {
     montant_estime: parseFloat(document.getElementById('cible-montant').value) || 0,
     niveau_confiance: parseFloat(document.getElementById('cible-confiance').value) || 0.5,
     notes: document.getElementById('cible-notes').value || null,
-    statut_avancement: colNum >= 5 ? document.getElementById('cible-statut-avancement').value : null,
+    statut_avancement: colNum === 5 ? document.getElementById('cible-statut-avancement').value : null,
+    type_finance: colNum === 6 ? document.getElementById('cible-type-finance').value : null,
     est_terminee: estTerminee,
     date_terminee: estTerminee ? new Date().toISOString() : null,
     produit_id: state.produitActif?.id || null,
@@ -801,6 +919,8 @@ async function saveCible(e) {
     }
     // Sauvegarder les projets MSI (col 5)
     await saveProjetsMsi(cibleId);
+    // Sauvegarder les paiements par phase (col 6)
+    await savePaiementsPhases(cibleId);
   }
   showToast(id ? 'Tâche modifiée' : 'Tâche créée', 'success');
   closeM('modal-cible');
@@ -866,7 +986,7 @@ function renderEventObjectifsList(evtId) {
   objs.forEach(o => {
     const div = document.createElement('div');
     div.className = 'event-objectif-item';
-    const realise = o.nombre_realise !== null ? o.nombre_realise : '-';
+    const realise = o.nombre_realise !== null ? o.nombre_realise : '—';
     div.innerHTML = `<div class="event-objectif-item-content"><div class="event-objectif-item-type">${o.type_objectif}</div><div class="event-objectif-item-desc">${o.description || '(sans description)'}</div></div><div class="event-objectif-item-stats"><strong>${realise}</strong> / ${o.nombre_cible}</div>`;
     div.addEventListener('click', () => openModalObjectifEvt(o));
     container.appendChild(div);
@@ -1041,7 +1161,7 @@ function openModalSource(prefill = {}) {
   document.getElementById('source-id').value = prefill.id || '';
   document.getElementById('modal-source-title').textContent = prefill.id ? 'Modifier source' : 'Nouvelle source';
   const parentSel = document.getElementById('source-parent');
-  parentSel.innerHTML = '<option value="">- Aucun parent (source principale)</option>';
+  parentSel.innerHTML = '<option value="">— Aucun parent (source principale)</option>';
   state.sources.filter(s => !s.parent_id && s.id !== prefill.id).forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = s.nom;
@@ -1221,6 +1341,9 @@ function renderKanban() {
         if (!cible.statut_avancement || ['Communication','Financement','Paiement','CRM'].includes(cible.statut_avancement)) {
           newData.statut_avancement = 'Négociation';
         }
+      } else if (col.numero === 6) {
+        newData.etape = 6;
+        if (!cible.type_finance) newData.type_finance = 'Facturation';
       }
       await sb.from('cibles_msi').update(newData).eq('id', cibleId);
       await loadData();
@@ -1282,7 +1405,7 @@ function renderKanbanCard(c, col, body) {
   if (src) html += `<div class="kanban-card-resultat" style="font-size:10px;">${src.nom}</div>`;
 
   html += `<div class="kanban-card-meta">`;
-  html += `<span>${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '-'}</span>`;
+  html += `<span>${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '—'}</span>`;
   if (col.numero === 5 && c.statut_avancement) {
     html += `<span class="kanban-card-statut">${c.statut_avancement}</span>`;
   } else if (c.date_echeance) {
@@ -1302,6 +1425,25 @@ function renderKanbanCard(c, col, body) {
       html += `<div class="kanban-card-projet-tag"><span class="projet-msi-periode">${p.periode_msi}</span> ${p.intitule ? '<em>' + p.intitule + '</em>' : ''} <strong>${formatEuro(p.montant)} €</strong> · ${p.nb_equipes || 1} éq.</div>`;
     });
     html += `</div>`;
+  }
+
+  // Paiements phases sur la carte (col 6)
+  const paiementsCarte = (state.paiementsPhases || []).filter(p => p.cible_id === c.id);
+  if (paiementsCarte.length > 0) {
+    const totalP = paiementsCarte.reduce((s, p) => s + (p.montant || 0), 0);
+    const payeP = paiementsCarte.filter(p => p.est_paye).reduce((s, p) => s + (p.montant || 0), 0);
+    const enRetardP = paiementsCarte.filter(p => !p.est_paye && p.date_echeance_paiement && new Date(p.date_echeance_paiement) < new Date());
+    html += `<div class="kanban-card-paiements">`;
+    html += `<span class="paiement-tag-total">${formatEuro(payeP)} / ${formatEuro(totalP)} €</span>`;
+    if (enRetardP.length > 0) html += ` <span class="paiement-tag-retard">⚠️ ${enRetardP.length} impayé${enRetardP.length > 1 ? 's' : ''} en retard</span>`;
+    paiementsCarte.forEach(p => {
+      const retardP = !p.est_paye && p.date_echeance_paiement && new Date(p.date_echeance_paiement) < new Date();
+      html += `<div class="kanban-card-phase-line ${p.est_paye ? 'paye' : ''} ${retardP ? 'retard' : ''}">Ph.${p.phase} : ${formatEuro(p.montant)} € ${p.est_paye ? '✅' : (retardP ? '⚠️ Retard' : '⏳')}</div>`;
+    });
+    html += `</div>`;
+  }
+  if (c.type_finance) {
+    html += `<div class="kanban-card-type-finance">${c.type_finance}</div>`;
   }
 
   card.innerHTML = html;
@@ -1348,7 +1490,7 @@ function renderDashboard() {
   const ciblesSigneesAvecDate = ciblesSignees.filter(c => c.date_signature);
   const ciblesSigneesSansDate = ciblesSignees.filter(c => !c.date_signature);
 
-  // Filtre période MSI pour le KPI contrats signés - basé sur projets MSI
+  // Filtre période MSI pour le KPI contrats signés — basé sur projets MSI
   const periodeFiltre = document.getElementById('kpi-periode-filtre')?.value || '';
   // Projets MSI issus des tâches signées du produit actif
   const projetsMsiActifs = (state.projetsMsi || []).filter(p => {
@@ -1387,7 +1529,7 @@ function renderDashboard() {
   document.getElementById('kpi-prop-status').textContent = propMois >= state.kpi_prop_cible ? 'Atteint' : 'Retard';
 
   document.getElementById('kpi-contrats').textContent = nbSignesPeriode + (ciblesSigneesSansDate.length > 0 ? ' + ' + ciblesSigneesSansDate.length + ' ⏳' : '') + (useProjetsMsi ? ' projets' : '');
-  document.getElementById('kpi-contrats-obj').textContent = periodeFiltre ? 'Période ' + periodeFiltre + ' - Objectif ' + msiObjectif : 'Toutes périodes - Objectif ' + msiObjectif;
+  document.getElementById('kpi-contrats-obj').textContent = periodeFiltre ? 'Période ' + periodeFiltre + ' — Objectif ' + msiObjectif : 'Toutes périodes — Objectif ' + msiObjectif;
   const cardContrats = document.getElementById('kpi-card-contrats');
   const contratsOk = msiObjectif > 0 && nbSignesPeriode >= msiObjectif;
   cardContrats.className = 'kpi-card-big ' + (contratsOk ? 'kpi-card-ok' : '');
@@ -1473,7 +1615,7 @@ function renderDashboard() {
     const jours = Math.floor((new Date() - new Date(c.date_echeance)) / 86400000);
     const tr = document.createElement('tr');
     tr.className = 'retard';
-    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td>${col?.libelle || '-'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><strong>${jours} j</strong></td>`;
+    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td>${col?.libelle || '—'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><strong>${jours} j</strong></td>`;
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => openModalCible(c));
     tbodyR.appendChild(tr);
@@ -1708,7 +1850,7 @@ function renderTachesT0T1() {
     const tr = document.createElement('tr');
     if (statut.startsWith('⚠️')) tr.className = 'retard';
     else if (statut.startsWith('🟡')) tr.className = 'retard-soft';
-    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td>${col?.libelle || '-'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><span class="badge ${cls}">${statut}</span></td>`;
+    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td>${col?.libelle || '—'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><span class="badge ${cls}">${statut}</span></td>`;
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => openModalCible(c));
     tbody.appendChild(tr);
@@ -1930,7 +2072,7 @@ function renderMonthZoom() {
         const src = state.sources.find(s => s.id === item.source_id);
         let datesStr = new Date(item.date_evenement).toLocaleDateString('fr-FR');
         if (item.date_fin && item.date_fin !== item.date_evenement) datesStr += ' → ' + new Date(item.date_fin).toLocaleDateString('fr-FR');
-        html += `<div class="month-list-item" data-evt-id="${item.id}"><div class="month-list-date">${datesStr}</div><div class="month-list-content"><div class="month-list-titre">${item.quoi}</div><div class="month-list-meta">${src?.nom || '-'} · ${item.type_evenement || 'Extérieur'}${item.lieu_libre ? ' · '+item.lieu_libre : (item.lieu_ville ? ' · '+item.lieu_ville : '')}</div></div></div>`;
+        html += `<div class="month-list-item" data-evt-id="${item.id}"><div class="month-list-date">${datesStr}</div><div class="month-list-content"><div class="month-list-titre">${item.quoi}</div><div class="month-list-meta">${src?.nom || '—'} · ${item.type_evenement || 'Extérieur'}${item.lieu_libre ? ' · '+item.lieu_libre : (item.lieu_ville ? ' · '+item.lieu_ville : '')}</div></div></div>`;
       } else {
         const icon = JALON_ICONS[item.type_jalon] || '📍';
         let datesStr = new Date(item.date_debut).toLocaleDateString('fr-FR');
@@ -2013,7 +2155,7 @@ function renderEventsTable() {
     if (ev.date_fin && ev.date_fin !== ev.date_evenement) datesStr += ' → ' + new Date(ev.date_fin).toLocaleDateString('fr-FR');
     let lieu = ev.lieu_libre || [ev.lieu_ville, ev.lieu_code_postal].filter(x => x).join(' ');
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${datesStr}</td><td><span class="badge ${ev.type_evenement === 'Intérieur' ? 'badge-info' : 'badge-warning'}">${ev.type_evenement || 'Extérieur'}</span></td><td>${ev.quoi}</td><td>${src?.nom || '-'}</td><td>${lieu || '-'}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td><span class="badge ${cls}">${statut}</span></td><td><button class="btn-link" data-id="${ev.id}">Modifier</button></td>`;
+    tr.innerHTML = `<td>${datesStr}</td><td><span class="badge ${ev.type_evenement === 'Intérieur' ? 'badge-info' : 'badge-warning'}">${ev.type_evenement || 'Extérieur'}</span></td><td>${ev.quoi}</td><td>${src?.nom || '—'}</td><td>${lieu || '—'}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td><span class="badge ${cls}">${statut}</span></td><td><button class="btn-link" data-id="${ev.id}">Modifier</button></td>`;
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.btn-link').forEach(btn => {
@@ -2272,7 +2414,7 @@ function renderRevueContent() {
   }
 
   let html = `
-    <h3 style="margin-top:0;">Rétrospective - ${label}</h3>
+    <h3 style="margin-top:0;">Rétrospective — ${label}</h3>
     <div class="revue-kpi-grid">
       <div class="revue-kpi-card">
         <div class="revue-kpi-label">Appels / Contacts</div>

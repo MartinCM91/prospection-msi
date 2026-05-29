@@ -392,3 +392,28 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .kanban-card-projet-tag { font-size: 10px; color: #5F5E5A; margin-bottom: 3px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .kanban-card-projet-tag em { color: #1F3864; font-style: normal; }
 .kanban-card-projet-tag strong { color: #085041; }
+
+/* PAIEMENTS PAR PHASE (col 6 Finance) */
+.paiements-summary { display: flex; gap: 16px; padding: 10px 14px; background: #F0F4F9; border-radius: 6px; margin-bottom: 10px; font-size: 13px; flex-wrap: wrap; }
+.paiement-paye { color: #1D9E75; }
+.paiement-restant { color: #A32D2D; }
+.paiement-phase-card { background: white; border: 1px solid #E5E3DC; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; transition: all 0.15s; }
+.paiement-phase-card.paye { background: #F0FBF6; border-color: #1D9E75; opacity: 0.8; }
+.paiement-phase-card.en-retard { background: #FFF5F5; border-color: #A32D2D; border-left: 4px solid #A32D2D; }
+.paiement-phase-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.paiement-phase-num { font-weight: 700; color: #1F3864; font-size: 13px; }
+.paiement-check-label { font-size: 12px; color: #5F5E5A; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.paiement-alerte { background: #A32D2D; color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+.btn-paiement-delete { background: none; border: none; cursor: pointer; font-size: 14px; opacity: 0.5; margin-left: auto; }
+.btn-paiement-delete:hover { opacity: 1; }
+.paiement-phase-body .form-row { margin-bottom: 6px; }
+
+/* Paiements sur carte kanban */
+.kanban-card-paiements { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #D3D1C7; font-size: 10px; }
+.paiement-tag-total { background: #E6F1FB; color: #0C447C; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.paiement-tag-retard { background: #FCEBEB; color: #A32D2D; padding: 2px 8px; border-radius: 10px; font-weight: 600; animation: pulse 1.5s infinite; }
+.kanban-card-phase-line { font-size: 10px; color: #5F5E5A; margin-top: 3px; }
+.kanban-card-phase-line.paye { color: #1D9E75; text-decoration: line-through; opacity: 0.7; }
+.kanban-card-phase-line.retard { color: #A32D2D; font-weight: 600; }
+.kanban-card-type-finance { font-size: 10px; background: #E87461; color: white; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-top: 4px; font-weight: 500; }

@@ -142,7 +142,7 @@ async function loadData() {
 
 function formatEuro(n) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n || 0); }
 
-function fillYearSelect(el, current, range = 3) {
+function fillYearSelect(el, current, range = 5) {
   el.innerHTML = '';
   const cy = new Date().getFullYear();
   for (let y = cy - 1; y <= cy + range; y++) {
@@ -151,6 +151,38 @@ function fillYearSelect(el, current, range = 3) {
     if (y === current) o.selected = true;
     el.appendChild(o);
   }
+}
+
+function fillPeriodeSelects() {
+  // Collecter toutes les périodes connues (objectifs + tâches + projets MSI + défauts)
+  const periodesSet = new Set(['2526B','2627A','2627B','2728A']);
+  state.objectifsAnnuels.forEach(o => { if (o.periode_msi && o.periode_msi !== 'ANNUEL') periodesSet.add(o.periode_msi); });
+  state.cibles.forEach(c => { if (c.periode_msi) periodesSet.add(c.periode_msi); });
+  (state.projetsMsi||[]).forEach(p => { if (p.periode_msi) periodesSet.add(p.periode_msi); });
+  const periodes = Array.from(periodesSet).sort();
+
+  // Peupler tous les selects de période
+  ['plan-periode', 'kpi-periode-filtre', 'cible-periode'].forEach(selectId => {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const currentVal = sel.value;
+    const hasEmptyOption = sel.querySelector('option[value=""]');
+    sel.innerHTML = '';
+    if (selectId === 'plan-periode' || selectId === 'kpi-periode-filtre') {
+      const o0 = document.createElement('option');
+      o0.value = ''; o0.textContent = selectId === 'kpi-periode-filtre' ? 'Toutes périodes' : 'Toutes';
+      sel.appendChild(o0);
+    }
+    if (selectId === 'cible-periode') {
+      const o0 = document.createElement('option'); o0.value = ''; o0.textContent = '—'; sel.appendChild(o0);
+    }
+    periodes.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p; o.textContent = p;
+      sel.appendChild(o);
+    });
+    if (currentVal) sel.value = currentVal;
+  });
 }
 
 function getColonneCible(cible) {
@@ -445,6 +477,7 @@ function setupAllModals() {
   document.getElementById('modal-source-close').addEventListener('click', () => closeM('modal-source'));
   document.getElementById('modal-source').addEventListener('click', e => { if (e.target.id === 'modal-source') closeM('modal-source'); });
   document.getElementById('source-form').addEventListener('submit', saveSource);
+  document.getElementById('btn-delete-source').addEventListener('click', deleteSource);
 
   document.getElementById('modal-jalon-close').addEventListener('click', () => closeM('modal-jalon'));
   document.getElementById('modal-jalon').addEventListener('click', e => { if (e.target.id === 'modal-jalon') closeM('modal-jalon'); });
@@ -741,7 +774,7 @@ function renderPaiementsPhasesList() {
         </div>
         <div class="form-row form-row-2">
           <div class="form-field"><label>Date paiement effectif</label><input type="date" class="pp-date-paye" data-index="${i}" value="${p.date_paiement || ''}" ${!p.est_paye ? 'disabled' : ''}></div>
-          <div class="form-field"><label>Notes</label><input type="text" class="pp-notes" data-index="${i}" value="${p.notes || ''}"></div>
+          <div class="form-field"><label>N° facture</label><input type="text" class="pp-notes" data-index="${i}" value="${p.notes || ''}"></div>
         </div>
       </div>
     </div>`;
@@ -1160,6 +1193,7 @@ function openModalSource(prefill = {}) {
   document.getElementById('source-form').reset();
   document.getElementById('source-id').value = prefill.id || '';
   document.getElementById('modal-source-title').textContent = prefill.id ? 'Modifier source' : 'Nouvelle source';
+  document.getElementById('btn-delete-source').classList.toggle('hidden', !prefill.id);
   const parentSel = document.getElementById('source-parent');
   parentSel.innerHTML = '<option value="">— Aucun parent (source principale)</option>';
   state.sources.filter(s => !s.parent_id && s.id !== prefill.id).forEach(s => {
@@ -1189,6 +1223,22 @@ async function saveSource(e) {
   const { error } = id ? await sb.from('sources').update(data).eq('id', id) : await sb.from('sources').insert([data]);
   if (error) showToast('Erreur : ' + error.message, 'error');
   else { showToast(id ? 'Source modifiée' : 'Source créée', 'success'); closeM('modal-source'); await loadData(); renderCalendar(); }
+}
+
+async function deleteSource() {
+  const id = document.getElementById('source-id').value;
+  if (!id) return;
+  const src = state.sources.find(s => s.id === parseInt(id));
+  const childCount = state.sources.filter(s => s.parent_id === parseInt(id)).length;
+  const msg = childCount > 0
+    ? `Supprimer "${src?.nom}" et ses ${childCount} sous-source(s) ? Les événements et tâches liés perdront leur source.`
+    : `Supprimer la source "${src?.nom}" ? Les événements et tâches liés perdront leur source.`;
+  if (!confirm(msg)) return;
+  // Détacher les sous-sources
+  if (childCount > 0) await sb.from('sources').update({ parent_id: null }).eq('parent_id', parseInt(id));
+  const { error } = await sb.from('sources').delete().eq('id', parseInt(id));
+  if (error) showToast('Erreur : ' + error.message, 'error');
+  else { showToast('Source supprimée', 'success'); closeM('modal-source'); await loadData(); renderAll(); }
 }
 
 // ============================================================
@@ -1257,6 +1307,7 @@ async function savePeriode(e) {
 // RENDUS
 // ============================================================
 function renderAll() {
+  fillPeriodeSelects();
   renderDashboard();
   renderKanban();
   renderHebdo();
@@ -1569,8 +1620,61 @@ function renderDashboard() {
   document.getElementById('kpi6-perdues').textContent = ciblesPerdues.length;
   document.getElementById('kpi6-perdues-obj').textContent = kpiCibles.offres_perdues ? 'Cible max ' + kpiCibles.offres_perdues : '';
 
+  // === KPI RÉELS (calculés depuis les tâches) ===
+  const ciblesActives = cibles.filter(c => !c.est_terminee);
+  const realLeads = ciblesActives.filter(c => getColonneCible(c) === 1).length;
+  const realPhoning = ciblesActives.filter(c => getColonneCible(c) === 2).length;
+  const realRdv = ciblesActives.filter(c => getColonneCible(c) === 3).length;
+  const realOffres = ciblesActives.filter(c => getColonneCible(c) === 4).length;
+  const realNego = ciblesEnNegociation.length;
+  const realSignes = nbSignesPeriode;
+  const realPerdus = ciblesPerdues.length;
+
+  const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  el('kpi-real-leads', realLeads);
+  el('kpi-real-phoning', realPhoning);
+  el('kpi-real-rdv', realRdv);
+  el('kpi-real-offres', realOffres);
+  el('kpi-real-nego', realNego);
+  el('kpi-real-signes', realSignes + (useProjetsMsi ? ' projets' : ''));
+  el('kpi-real-perdus', realPerdus);
+
+  // Liaison objectifs ↔ projets MSI : X signés / objectif = Y restants
+  const elRestant = document.getElementById('kpi-objectif-restant');
+  if (elRestant && msiObjectif > 0) {
+    const restant = Math.max(0, msiObjectif - nbSignesPeriode);
+    const pctAtteinte = Math.round((nbSignesPeriode / msiObjectif) * 100);
+    elRestant.innerHTML = `<strong>${nbSignesPeriode}</strong> projets signés sur <strong>${msiObjectif}</strong> objectif ${periodeFiltre || 'total'} → <strong style="color:${restant === 0 ? '#1D9E75' : '#A32D2D'};">${restant} restant${restant > 1 ? 's' : ''} à signer</strong> (${pctAtteinte}% atteint)`;
+    elRestant.style.display = '';
+  } else if (elRestant) {
+    elRestant.style.display = 'none';
+  }
+  // KPI réels signés objectif
+  const elRealSignesObj = document.getElementById('kpi-real-signes-obj');
+  if (elRealSignesObj) elRealSignesObj.textContent = msiObjectif > 0 ? `Objectif ${msiObjectif} (${periodeFiltre || 'total'})` : '';
+  const elRealSignesPct = document.getElementById('kpi-real-signes-pct');
+  if (elRealSignesPct && msiObjectif > 0) {
+    const pct = Math.round((nbSignesPeriode / msiObjectif) * 100);
+    elRealSignesPct.textContent = pct + ' %';
+    elRealSignesPct.className = 'kpi-percent' + (pct >= 100 ? '' : ' alert');
+  }
+
   document.getElementById('kpi-ca-signe').textContent = formatEuro(caSigne);
   document.getElementById('kpi-ca-cours').textContent = formatEuro(caEnCours);
+  // CA facturé et payé depuis paiements_phases
+  const allPaiements = (state.paiementsPhases || []).filter(p => {
+    const cible = cibles.find(c => c.id === p.cible_id);
+    return cible != null;
+  });
+  const caFacture = allPaiements.reduce((s, p) => s + (p.montant || 0), 0);
+  const caPaye = allPaiements.filter(p => p.est_paye).reduce((s, p) => s + (p.montant || 0), 0);
+  const caRestant = caFacture - caPaye;
+  const elFacture = document.getElementById('kpi-ca-facture');
+  const elPaye = document.getElementById('kpi-ca-paye');
+  const elCaRestant = document.getElementById('kpi-ca-restant');
+  if (elFacture) elFacture.textContent = formatEuro(caFacture);
+  if (elPaye) elPaye.textContent = formatEuro(caPaye);
+  if (elCaRestant) { elCaRestant.textContent = formatEuro(caRestant); elCaRestant.style.color = caRestant > 0 ? '#A32D2D' : '#1D9E75'; }
   document.getElementById('kpi-ca-objectif').textContent = formatEuro(caObjectif);
   document.getElementById('kpi-atteinte-ca').textContent = atteinteCA + ' %';
   document.getElementById('kpi-cibles-act').textContent = ciblesOuvertes.length;
@@ -1920,13 +2024,14 @@ function renderCalendar() {
     const checklistIcon = hasChecklist 
       ? `<span class="cal-source-checklist" data-checklist-source="${src.id}" title="Voir la checklist de préparatifs">📋</span>`
       : '';
+    const editIcon = `<span class="cal-source-edit" data-source-edit="${src.id}" title="Modifier cette source">✏️</span>`;
     if (src.isParent) {
       labelClass += ' cal-source-parent';
       if (state.expandedParents.has(src.id)) labelClass += ' expanded';
-      labelContent = `<span style="display:flex;align-items:center;flex:1;cursor:pointer;" data-parent-toggle="${src.id}"><span class="chevron">▶</span><span class="cal-source-text">${src.nom}</span></span>${checklistIcon}`;
+      labelContent = `<span style="display:flex;align-items:center;flex:1;cursor:pointer;" data-parent-toggle="${src.id}"><span class="chevron">▶</span><span class="cal-source-text">${src.nom}</span></span>${editIcon}${checklistIcon}`;
     } else {
       if (src.isChild) labelClass += ' cal-source-child';
-      labelContent = `<span class="cal-source-text">${src.nom}</span>${checklistIcon}`;
+      labelContent = `<span class="cal-source-text">${src.nom}</span>${editIcon}${checklistIcon}`;
     }
     let html = `<div class="cal-cell ${labelClass}">${labelContent}</div>`;
     let sourceIds = [src.id];
@@ -1946,6 +2051,13 @@ function renderCalendar() {
   });
   container.querySelectorAll('[data-checklist-source]').forEach(el => {
     el.addEventListener('click', e => { e.stopPropagation(); openChecklistModal(parseInt(el.dataset.checklistSource)); });
+  });
+  container.querySelectorAll('[data-source-edit]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const src = state.sources.find(s => s.id === parseInt(el.dataset.sourceEdit));
+      if (src) openModalSource(src);
+    });
   });
   container.querySelectorAll('[data-zoom-month]').forEach(el => {
     el.addEventListener('click', e => {

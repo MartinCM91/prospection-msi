@@ -417,3 +417,8 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .kanban-card-phase-line.paye { color: #1D9E75; text-decoration: line-through; opacity: 0.7; }
 .kanban-card-phase-line.retard { color: #A32D2D; font-weight: 600; }
 .kanban-card-type-finance { font-size: 10px; background: #E87461; color: white; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-top: 4px; font-weight: 500; }
+
+/* Source edit icon in calendar */
+.cal-source-edit { font-size: 12px; cursor: pointer; opacity: 0.3; transition: opacity 0.15s; margin-left: 4px; }
+.cal-source-edit:hover { opacity: 1; }
+.kpi-grid-7 { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }

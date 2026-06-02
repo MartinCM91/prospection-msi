@@ -145,12 +145,17 @@ function formatEuro(n) { return new Intl.NumberFormat('fr-FR', { maximumFraction
 function fillYearSelect(el, current, range = 5) {
   el.innerHTML = '';
   const cy = new Date().getFullYear();
-  for (let y = cy - 1; y <= cy + range; y++) {
+  const annees = new Set();
+  for (let y = cy - 1; y <= cy + range; y++) annees.add(y);
+  // Ajouter les années qui ont des périodes/objectifs définis
+  (state.objectifsAnnuels || []).forEach(o => { if (o.annee) annees.add(o.annee); });
+  if (current) annees.add(current);
+  Array.from(annees).sort((a,b) => a - b).forEach(y => {
     const o = document.createElement('option');
     o.value = y; o.textContent = y;
     if (y === current) o.selected = true;
     el.appendChild(o);
-  }
+  });
 }
 
 function getPeriodesList() {
@@ -872,6 +877,9 @@ function addResultatTag(libelle) {
   if (state.tempResultats.includes(libelle)) return;
   state.tempResultats.push(libelle);
   renderResultatsTags();
+  // Garder la section visible
+  const sec = document.getElementById('resultats-attendus-section');
+  if (sec) sec.style.display = 'block';
   const domId = parseInt(document.getElementById('cible-domaine').value);
   if (domId) updateResultatsSelect(domId);
 }
@@ -925,6 +933,10 @@ async function saveCible(e) {
     nombre_contacts_attendus: parseInt(document.getElementById('cible-nb-contacts').value) || 0,
     nombre_rdv_attendus: parseInt(document.getElementById('cible-nb-rdv').value) || 0,
     nb_appels: parseInt(document.getElementById('cible-nb-appels')?.value) || 0,
+    nb_besoins_id: parseInt(document.getElementById('cible-nb-besoins-id')?.value) || 0,
+    nb_besoins_ret: parseInt(document.getElementById('cible-nb-besoins-ret')?.value) || 0,
+    nb_prop_real: parseInt(document.getElementById('cible-nb-prop-real')?.value) || 0,
+    nb_prop_ret: parseInt(document.getElementById('cible-nb-prop-ret')?.value) || 0,
     date_echeance: document.getElementById('cible-echeance').value || null,
     etape: colNum,
     periode_msi: document.getElementById('cible-periode').value || null,
@@ -941,6 +953,14 @@ async function saveCible(e) {
   if (data.statut_avancement === 'Signé') {
     data.date_signature = document.getElementById('cible-date-signature').value || new Date().toISOString().split('T')[0];
   }
+
+  // Détecter si on vient de passer à "Signé" (pour création auto ticket Facturation)
+  let etaitDejaSigne = false;
+  if (id) {
+    const ancienne = state.cibles.find(c => c.id === parseInt(id));
+    etaitDejaSigne = ancienne && ancienne.statut_avancement === 'Signé';
+  }
+  const vientDEtreSigne = data.statut_avancement === 'Signé' && !etaitDejaSigne;
 
   const { data: result, error } = id 
     ? await sb.from('cibles_msi').update(data).eq('id', id).select() 
@@ -964,7 +984,50 @@ async function saveCible(e) {
     // Sauvegarder les paiements par phase (col 6)
     await savePaiementsPhases(cibleId);
   }
-  showToast(id ? 'Tâche modifiée' : 'Tâche créée', 'success');
+
+  // CRÉATION AUTO d'un ticket Facturation quand un contrat est signé
+  let messageExtra = '';
+  if (vientDEtreSigne && cibleId) {
+    // Vérifier qu'un ticket facturation n'existe pas déjà pour cette tâche
+    const dejaFacture = state.cibles.find(c => c.intitule && c.intitule.startsWith('Facturer : ') && c.intitule.includes(data.description_action));
+    if (!dejaFacture) {
+      const ticketFacturation = {
+        description_action: 'Facturer : ' + data.description_action,
+        intitule: 'Facturer : ' + data.description_action,
+        etape: 6,
+        type_finance: 'Facturation',
+        responsable_id: data.responsable_id,
+        periode_msi: data.periode_msi,
+        montant_estime: data.montant_estime,
+        produit_id: data.produit_id,
+        niveau_confiance: 1,
+        est_terminee: false,
+        notes: 'Ticket créé automatiquement à la signature du contrat.',
+        date_echeance: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      const { data: factResult, error: factError } = await sb.from('cibles_msi').insert([ticketFacturation]).select();
+      if (!factError && factResult && factResult[0]) {
+        // Copier les projets MSI dans des phases de facturation
+        const projets = state.tempProjetsMsi.length > 0 ? state.tempProjetsMsi : [];
+        if (projets.length > 0) {
+          const phases = projets.slice(0, 5).map((pr, i) => ({
+            cible_id: factResult[0].id,
+            phase: i + 1,
+            montant: pr.montant || 0,
+            est_paye: false,
+            date_echeance_paiement: null,
+            notes: pr.intitule || ('Phase ' + (i + 1))
+          }));
+          await sb.from('paiements_phases').insert(phases);
+        }
+        messageExtra = ' — Ticket Facturation créé automatiquement';
+      }
+    }
+  }
+
+  showToast((id ? 'Tâche modifiée' : 'Tâche créée') + messageExtra, 'success');
   closeM('modal-cible');
   await loadData(); renderAll();
 }
@@ -1299,10 +1362,8 @@ async function deleteJalon() {
 // ============================================================
 function openModalPeriode() {
   document.getElementById('periode-form').reset();
-  const anneeSel = document.getElementById('periode-annee');
-  if (anneeSel) {
-    fillYearSelect(anneeSel, state.obj_annee || new Date().getFullYear());
-  }
+  const anneeInput = document.getElementById('periode-annee');
+  if (anneeInput) anneeInput.value = state.obj_annee || new Date().getFullYear();
   document.getElementById('modal-periode').classList.remove('hidden');
 }
 
@@ -1311,12 +1372,22 @@ async function savePeriode(e) {
   const code = document.getElementById('periode-code').value.trim().toUpperCase();
   const commentaire = document.getElementById('periode-commentaire').value;
   if (!code) return;
-  const anneeSel = document.getElementById('periode-annee');
-  const annee = anneeSel ? parseInt(anneeSel.value) : (state._periodeAnneeCible || state.obj_annee);
+  const anneeInput = document.getElementById('periode-annee');
+  const annee = anneeInput ? parseInt(anneeInput.value) : (state.obj_annee || new Date().getFullYear());
+  if (!annee || annee < 2024) { showToast('Année invalide', 'error'); return; }
   const exists = state.objectifsAnnuels.find(o => o.annee === annee && o.periode_msi === code);
   if (exists) { showToast('Cette période existe déjà', 'error'); return; }
   await sb.from('objectifs_annuels').insert([{ annee: annee, periode_msi: code, ca_cible: 0, msi_cible: 0, commentaire }]);
-  showToast('Période ajoutée', 'success'); closeM('modal-periode'); state._periodeAnneeCible = null; await loadData(); renderAll();
+  showToast('Période ' + code + ' (' + annee + ') ajoutée', 'success');
+  closeM('modal-periode');
+  state._periodeAnneeCible = null;
+  await loadData();
+  // Rafraîchir les sélecteurs d'année (la nouvelle année peut être hors plage par défaut)
+  ['dash-year', 'year-select', 'obj-year', 'hebdo-year'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    if (sel) { const cur = parseInt(sel.value); fillYearSelect(sel, cur); }
+  });
+  renderAll();
 }
 
 function renderParametres() {

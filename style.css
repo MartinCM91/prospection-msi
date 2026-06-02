@@ -442,3 +442,8 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .param-info-box { background: #F0F4F9; border-left: 4px solid #1F3864; border-radius: 6px; padding: 14px 18px; font-size: 14px; color: #2C2C2A; }
 .param-info-box ol { color: #5F5E5A; }
 .btn-sm { font-size: 11px !important; padding: 4px 10px !important; }
+
+/* === ANALYSE & PERFORMANCE === */
+.perf-bon { color: #1D9E75; font-weight: 600; }
+.perf-moyen { color: #BA7517; font-weight: 600; }
+.perf-faible { color: #A32D2D; font-weight: 600; }

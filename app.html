@@ -171,6 +171,38 @@
         <p class="hint">Rétrospective : contrats signés/perdus par date de signature, taux de conversion, comparaison vs période précédente.</p>
         <div id="revue-content"></div>
       </div>
+
+      <!-- === ANALYSE & PERFORMANCE === -->
+      <div style="margin-top:32px;padding-top:24px;border-top:3px solid #5DCAA5;">
+        <div class="view-header">
+          <h2 style="margin-bottom:0;">Analyse & Performance</h2>
+          <div class="filter-bar">
+            <label>Période MSI</label>
+            <select id="analyse-periode"><option value="">Toutes</option></select>
+          </div>
+        </div>
+        <p class="hint">Indicateurs calculés depuis les tâches pour interpréter les résultats et identifier les leviers.</p>
+
+        <h3>1. Entonnoir de conversion</h3>
+        <p class="hint" style="margin-top:0;">Où se situent les pertes dans le cycle de vente.</p>
+        <div class="charts-grid">
+          <div class="chart-card"><div class="chart-title">Entonnoir des étapes</div><div class="chart-wrapper"><canvas id="chart-entonnoir"></canvas></div></div>
+          <div class="chart-card"><div class="chart-title">Taux de conversion entre étapes</div><div class="chart-wrapper"><canvas id="chart-taux-conv"></canvas></div></div>
+        </div>
+        <div class="table-wrapper"><table class="data-table" id="entonnoir-table"><thead><tr><th>Transition</th><th>De</th><th>Vers</th><th>Taux</th><th>Interprétation</th></tr></thead><tbody></tbody></table></div>
+
+        <h3>2. Performance par source</h3>
+        <p class="hint" style="margin-top:0;">Quelles sources génèrent le plus de signatures et de CA.</p>
+        <div class="chart-card-full"><div class="chart-wrapper" style="height:280px;"><canvas id="chart-sources"></canvas></div></div>
+        <div class="table-wrapper"><table class="data-table" id="sources-perf-table"><thead><tr><th>Source</th><th>Tâches</th><th>Signés</th><th>Taux transfo.</th><th>CA généré</th><th>Performance</th></tr></thead><tbody></tbody></table></div>
+
+        <h3>3. Évolution dans le temps</h3>
+        <p class="hint" style="margin-top:0;">Tendance des signatures et du CA par mois.</p>
+        <div class="chart-card-full"><div class="chart-wrapper" style="height:280px;"><canvas id="chart-evol-temps"></canvas></div></div>
+
+        <h3>4. Performance par commercial</h3>
+        <div class="table-wrapper"><table class="data-table" id="commerciaux-perf-table"><thead><tr><th>Commercial</th><th>Tâches actives</th><th>Signés</th><th>CA généré</th><th>Taux transfo.</th></tr></thead><tbody></tbody></table></div>
+      </div>
     </section>
 
     <!-- ====== CALENDRIER ====== -->

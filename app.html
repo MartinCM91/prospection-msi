@@ -33,6 +33,7 @@
     <button class="tab" data-tab="calendar">Calendrier</button>
     <button class="tab" data-tab="events">Événements</button>
     <button class="tab" data-tab="objectifs">Objectifs</button>
+    <button class="tab" data-tab="parametres">Paramètres</button>
     <button class="tab tab-aide" data-tab="aide">Aide</button>
   </nav>
 
@@ -226,6 +227,33 @@
       </div>
     </section>
 
+    <!-- ====== PARAMÈTRES ====== -->
+    <section id="view-parametres" class="view">
+      <h2>Paramètres</h2>
+      <div class="section-block">
+        <div class="section-header"><h3>Périodes MSI</h3><button class="btn-primary" id="btn-param-add-periode">+ Nouvelle période</button></div>
+        <p class="hint">Créez les périodes MSI (ex : 2728B, 2829A). Une période correspond à un semestre académique. Elles apparaîtront automatiquement dans tous les menus déroulants.</p>
+        <div class="table-wrapper"><table class="data-table" id="param-periodes-table"><thead><tr><th>Code période</th><th>Année</th><th>Commentaire</th><th>Tâches liées</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="section-block">
+        <div class="section-header"><h3>Années</h3></div>
+        <p class="hint">Les années disponibles dans les filtres vont de l'année dernière à +5 ans. Pour piloter une nouvelle année, sélectionnez-la simplement dans les filtres du tableau de bord ou des objectifs, puis créez les périodes MSI correspondantes ci-dessus.</p>
+        <div class="param-info-box">
+          <strong>Comment ajouter une nouvelle année de pilotage :</strong>
+          <ol style="margin:8px 0 0;padding-left:20px;">
+            <li>Sélectionnez l'année voulue dans le filtre "Année" (tableau de bord ou objectifs)</li>
+            <li>Créez les périodes MSI de cette année ci-dessus (ex : pour 2028 → "2829A")</li>
+            <li>Dans l'onglet Objectifs, définissez les objectifs CA et nombre de contrats pour ces périodes</li>
+          </ol>
+        </div>
+      </div>
+      <div class="section-block">
+        <div class="section-header"><h3>Commerciaux</h3></div>
+        <p class="hint">Liste des utilisateurs commerciaux. Pour ajouter un nouvel utilisateur, passez par Supabase (voir le manuel de formation, section concepteur).</p>
+        <div class="table-wrapper"><table class="data-table" id="param-users-table"><thead><tr><th>Prénom</th><th>Nom</th><th>Email</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
     <!-- ====== AIDE (enrichie) ====== -->
     <section id="view-aide" class="view">
       <div class="aide-hero">
@@ -328,10 +356,13 @@
         </div>
 
         <div class="form-section">
-          <h4 class="form-section-title">Résultats attendus (plusieurs possibles)</h4>
-          <div class="form-row"><div class="form-field"><label>Depuis la liste</label><select id="cible-resultat-select"></select></div></div>
-          <div class="form-row"><div class="form-field"><label>Ou saisir (Entrée pour ajouter)</label><input type="text" id="cible-resultat-libre" placeholder="Tapez puis Entrée"></div></div>
-          <div id="resultats-attendus-list" class="resultats-list"></div>
+          <button type="button" id="btn-toggle-resultats" class="btn-secondary" style="font-size:13px;">+ Ajouter un résultat attendu (optionnel)</button>
+          <div id="resultats-attendus-section" style="display:none;margin-top:12px;">
+            <h4 class="form-section-title">Résultats attendus (plusieurs possibles)</h4>
+            <div class="form-row"><div class="form-field"><label>Depuis la liste</label><select id="cible-resultat-select"></select></div></div>
+            <div class="form-row"><div class="form-field"><label>Ou saisir (Entrée pour ajouter)</label><input type="text" id="cible-resultat-libre" placeholder="Tapez puis Entrée"></div></div>
+            <div id="resultats-attendus-list" class="resultats-list"></div>
+          </div>
         </div>
 
         <div class="form-section">
@@ -392,7 +423,7 @@
   <div id="modal-jalon" class="modal hidden"><div class="modal-content modal-small"><div class="modal-header"><h3 id="modal-jalon-title">Jalon MSI</h3><button id="modal-jalon-close">✕</button></div><form id="jalon-form" class="clean-form"><input type="hidden" id="jalon-id"><div class="form-row"><div class="form-field"><label>Titre *</label><input type="text" id="jalon-titre" required></div></div><div class="form-row form-row-2"><div class="form-field"><label>Type</label><select id="jalon-type"><option>Revue projet</option><option>Intervention client</option><option>Soutenance</option><option>Livrable</option><option>Réunion</option><option>Autre</option></select></div><div class="form-field"><label>Couleur</label><select id="jalon-couleur"><option value="#A32D2D">Rouge</option><option value="#1F3864">Bleu</option><option value="#1D9E75">Vert</option><option value="#BA7517">Orange</option><option value="#7F77DD">Violet</option></select></div></div><div class="form-row form-row-2"><div class="form-field"><label>Date début *</label><input type="date" id="jalon-date" required></div><div class="form-field"><label>Date fin</label><input type="date" id="jalon-date-fin"></div></div><div class="form-row"><div class="form-field"><label>Description</label><textarea id="jalon-desc" rows="2"></textarea></div></div><div class="modal-footer"><button type="button" id="btn-delete-jalon" class="btn-danger hidden">Supprimer</button><button type="submit" class="btn-primary">OK</button></div></form></div></div>
 
   <!-- Modale Période -->
-  <div id="modal-periode" class="modal hidden"><div class="modal-content modal-small"><div class="modal-header"><h3>Période</h3><button id="modal-periode-close">✕</button></div><form id="periode-form" class="clean-form"><div class="form-row"><div class="form-field"><label>Code *</label><input type="text" id="periode-code" required></div></div><div class="form-row"><div class="form-field"><label>Commentaire</label><input type="text" id="periode-commentaire"></div></div><div class="modal-footer"><button type="submit" class="btn-primary">Ajouter</button></div></form></div></div>
+  <div id="modal-periode" class="modal hidden"><div class="modal-content modal-small"><div class="modal-header"><h3>Nouvelle période MSI</h3><button id="modal-periode-close">✕</button></div><form id="periode-form" class="clean-form"><div class="form-row form-row-2"><div class="form-field"><label>Code * <span class="hint">(ex: 2829A)</span></label><input type="text" id="periode-code" required placeholder="2829A"></div><div class="form-field"><label>Année *</label><select id="periode-annee"></select></div></div><div class="form-row"><div class="form-field"><label>Commentaire</label><input type="text" id="periode-commentaire" placeholder="Ex: Semestre automne 2028"></div></div><div class="modal-footer"><button type="submit" class="btn-primary">Ajouter</button></div></form></div></div>
 
   <div id="toast" class="toast hidden"></div>
 

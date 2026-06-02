@@ -422,3 +422,23 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .cal-source-edit { font-size: 12px; cursor: pointer; opacity: 0.3; transition: opacity 0.15s; margin-left: 4px; }
 .cal-source-edit:hover { opacity: 1; }
 .kpi-grid-7 { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+
+/* === CARTE TICKET PARLANTE (fil d'avancement) === */
+.kanban-card-progress { display: flex; gap: 3px; margin: 8px 0 4px; }
+.progress-step { flex: 1; height: 5px; border-radius: 3px; background: #E5E3DC; transition: all 0.2s; }
+.progress-step.done { opacity: 0.55; }
+.progress-step.current { box-shadow: 0 0 0 2px rgba(31,56,100,0.25); }
+.kanban-card-etape-label { font-size: 10px; color: #888780; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px; }
+.kanban-card-infos { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.kc-info { font-size: 11px; background: #F0F4F9; color: #1F3864; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.kc-info.statut-signe { background: #E1F5EE; color: #085041; }
+.kc-info.statut-perdu { background: #FCEBEB; color: #A32D2D; }
+.kc-info.statut-nego { background: #EEEDFE; color: #534AB7; }
+.kc-info.kc-finance { background: #FCE9E5; color: #C0432B; }
+.kanban-card-source { font-size: 10px; color: #888780; margin-bottom: 4px; }
+.kanban-card-meta .kc-resp { font-size: 11px; color: #5F5E5A; font-weight: 600; }
+
+/* === PARAMÈTRES === */
+.param-info-box { background: #F0F4F9; border-left: 4px solid #1F3864; border-radius: 6px; padding: 14px 18px; font-size: 14px; color: #2C2C2A; }
+.param-info-box ol { color: #5F5E5A; }
+.btn-sm { font-size: 11px !important; padding: 4px 10px !important; }

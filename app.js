@@ -398,7 +398,7 @@ function setupNav() {
       tab.classList.add('tab-active');
       document.getElementById('view-' + tab.dataset.tab).classList.add('active');
       if (tab.dataset.tab === 'dashboard') setTimeout(renderDashboardCharts, 50);
-      if (tab.dataset.tab === 'hebdo') setTimeout(renderHebdoCharts, 50);
+      if (tab.dataset.tab === 'hebdo') setTimeout(() => { renderHebdoCharts(); renderAnalyse(); }, 50);
     });
   });
   document.getElementById('btn-logout').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
@@ -2531,6 +2531,206 @@ function renderRevue() {
   }
   setupRevueValueSelect();
   renderRevueContent();
+  renderAnalyse();
+}
+
+function renderAnalyse() {
+  const cibles = getCiblesProduitActif();
+  // Filtre période
+  const periodeSel = document.getElementById('analyse-periode');
+  if (periodeSel && !periodeSel.dataset.setup) {
+    // Remplir les périodes
+    const periodes = getPeriodesList();
+    periodeSel.innerHTML = '<option value="">Toutes</option>' + periodes.map(p => `<option value="${p}">${p}</option>`).join('');
+    periodeSel.addEventListener('change', renderAnalyse);
+    periodeSel.dataset.setup = '1';
+  }
+  const periodeFiltre = periodeSel?.value || '';
+  const cb = periodeFiltre ? cibles.filter(c => c.periode_msi === periodeFiltre) : cibles;
+
+  // === 1. ENTONNOIR ===
+  // On compte les tâches ayant atteint AU MOINS chaque étape (cumulatif)
+  const atteint = n => cb.filter(c => getColonneCible(c) >= n || (c.statut_avancement === 'Signé')).length;
+  // Plus juste : compter par colonne max atteinte
+  const parCol = {};
+  for (let i = 1; i <= 6; i++) parCol[i] = cb.filter(c => getColonneCible(c) === i).length;
+  // Cumulatif : nb de tâches ayant atteint l'étape i ou plus
+  const cumul = {};
+  for (let i = 1; i <= 6; i++) { cumul[i] = 0; for (let j = i; j <= 6; j++) cumul[i] += parCol[j]; }
+  // Signés / perdus
+  const nbSignes = cb.filter(c => c.statut_avancement === 'Signé').length;
+  const nbPerdus = cb.filter(c => c.statut_avancement === 'Perdu').length;
+
+  // Étapes de l'entonnoir
+  const etapes = [
+    { label: 'Leads', val: cumul[1] },
+    { label: 'Phoning', val: cumul[2] },
+    { label: 'RDV Qualif.', val: cumul[3] },
+    { label: 'Rédaction', val: cumul[4] },
+    { label: 'Avancement', val: cumul[5] },
+    { label: 'Signés', val: nbSignes }
+  ];
+
+  renderEntonnoirChart(etapes);
+  renderTauxConvChart(etapes);
+  renderEntonnoirTable(etapes);
+
+  // === 2. PERFORMANCE PAR SOURCE ===
+  const sourcesStats = {};
+  cb.forEach(c => {
+    const srcId = c.source_id || 'none';
+    if (!sourcesStats[srcId]) sourcesStats[srcId] = { taches: 0, signes: 0, ca: 0 };
+    sourcesStats[srcId].taches++;
+    if (c.statut_avancement === 'Signé') { sourcesStats[srcId].signes++; sourcesStats[srcId].ca += (c.montant_estime || 0); }
+  });
+  const sourcesArr = Object.entries(sourcesStats).map(([srcId, st]) => {
+    const src = state.sources.find(s => s.id === parseInt(srcId));
+    return { nom: src ? src.nom : 'Sans source', taches: st.taches, signes: st.signes, ca: st.ca, taux: st.taches > 0 ? Math.round((st.signes / st.taches) * 100) : 0 };
+  }).sort((a, b) => b.signes - a.signes || b.ca - a.ca);
+
+  renderSourcesChart(sourcesArr);
+  renderSourcesTable(sourcesArr);
+
+  // === 3. ÉVOLUTION DANS LE TEMPS ===
+  renderEvolTempsChart(cb);
+
+  // === 4. PERFORMANCE PAR COMMERCIAL ===
+  renderCommerciauxPerfTable(cb);
+}
+
+function renderEntonnoirChart(etapes) {
+  const ctx = document.getElementById('chart-entonnoir');
+  if (!ctx) return;
+  if (state.charts.entonnoir) { state.charts.entonnoir.destroy(); delete state.charts.entonnoir; }
+  state.charts.entonnoir = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: etapes.map(e => e.label),
+      datasets: [{
+        label: 'Nb tâches',
+        data: etapes.map(e => e.val),
+        backgroundColor: ['#7F77DD', '#5DCAA5', '#85B7EB', '#FAC775', '#1D9E75', '#0C7A52'],
+        borderRadius: 4
+      }]
+    },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+}
+
+function renderTauxConvChart(etapes) {
+  const ctx = document.getElementById('chart-taux-conv');
+  if (!ctx) return;
+  if (state.charts.tauxConv) { state.charts.tauxConv.destroy(); delete state.charts.tauxConv; }
+  const labels = [], data = [];
+  for (let i = 1; i < etapes.length; i++) {
+    labels.push(etapes[i-1].label + ' → ' + etapes[i].label);
+    data.push(etapes[i-1].val > 0 ? Math.round((etapes[i].val / etapes[i-1].val) * 100) : 0);
+  }
+  state.charts.tauxConv = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Taux %', data, backgroundColor: '#1F3864', borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } } }
+  });
+}
+
+function renderEntonnoirTable(etapes) {
+  const tbody = document.querySelector('#entonnoir-table tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  for (let i = 1; i < etapes.length; i++) {
+    const taux = etapes[i-1].val > 0 ? Math.round((etapes[i].val / etapes[i-1].val) * 100) : 0;
+    let interpretation = '', cls = '';
+    if (taux >= 70) { interpretation = '✅ Très bon'; cls = 'perf-bon'; }
+    else if (taux >= 40) { interpretation = '🟠 Correct'; cls = 'perf-moyen'; }
+    else { interpretation = '🔴 Point de perte'; cls = 'perf-faible'; }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${etapes[i-1].label} → ${etapes[i].label}</td><td>${etapes[i-1].val}</td><td>${etapes[i].val}</td><td class="${cls}"><strong>${taux}%</strong></td><td>${interpretation}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function renderSourcesChart(sourcesArr) {
+  const ctx = document.getElementById('chart-sources');
+  if (!ctx) return;
+  if (state.charts.sources) { state.charts.sources.destroy(); delete state.charts.sources; }
+  const top = sourcesArr.slice(0, 10);
+  state.charts.sources = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top.map(s => s.nom),
+      datasets: [
+        { label: 'Tâches', data: top.map(s => s.taches), backgroundColor: '#85B7EB', borderRadius: 4 },
+        { label: 'Signés', data: top.map(s => s.signes), backgroundColor: '#1D9E75', borderRadius: 4 }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+}
+
+function renderSourcesTable(sourcesArr) {
+  const tbody = document.querySelector('#sources-perf-table tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  if (sourcesArr.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty">Aucune donnée</td></tr>'; return; }
+  const maxCa = Math.max(...sourcesArr.map(s => s.ca), 1);
+  sourcesArr.forEach(s => {
+    let perf = '', cls = '';
+    if (s.taux >= 30 && s.signes > 0) { perf = '⭐ À favoriser'; cls = 'perf-bon'; }
+    else if (s.signes > 0) { perf = '🟠 Moyenne'; cls = 'perf-moyen'; }
+    else if (s.taches >= 3) { perf = '🔴 Peu efficace'; cls = 'perf-faible'; }
+    else { perf = '— Trop peu de données'; }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><strong>${s.nom}</strong></td><td>${s.taches}</td><td>${s.signes}</td><td class="${cls}">${s.taux}%</td><td>${formatEuro(s.ca)} €</td><td>${perf}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderEvolTempsChart(cibles) {
+  const ctx = document.getElementById('chart-evol-temps');
+  if (!ctx) return;
+  if (state.charts.evolTemps) { state.charts.evolTemps.destroy(); delete state.charts.evolTemps; }
+  // Grouper les signés par mois de date_signature
+  const parMois = {};
+  cibles.filter(c => c.statut_avancement === 'Signé' && c.date_signature).forEach(c => {
+    const mois = c.date_signature.substring(0, 7); // YYYY-MM
+    if (!parMois[mois]) parMois[mois] = { nb: 0, ca: 0 };
+    parMois[mois].nb++;
+    parMois[mois].ca += (c.montant_estime || 0);
+  });
+  const moisLabels = Object.keys(parMois).sort();
+  if (moisLabels.length === 0) {
+    ctx.parentElement.innerHTML = '<p class="hint" style="text-align:center;padding:40px;">Aucune signature datée pour le moment. Renseignez les dates de signature pour voir l\'évolution.</p>';
+    return;
+  }
+  state.charts.evolTemps = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: moisLabels.map(m => { const [y, mo] = m.split('-'); return ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'][parseInt(mo)-1] + ' ' + y.substring(2); }),
+      datasets: [
+        { label: 'Signés (nb)', data: moisLabels.map(m => parMois[m].nb), borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.1)', yAxisID: 'y', tension: 0.3, fill: true },
+        { label: 'CA (€)', data: moisLabels.map(m => parMois[m].ca), borderColor: '#1F3864', backgroundColor: 'rgba(31,56,100,0.05)', yAxisID: 'y1', tension: 0.3 }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, position: 'left', ticks: { precision: 0 }, title: { display: true, text: 'Nb signés' } }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'CA €' } } } }
+  });
+}
+
+function renderCommerciauxPerfTable(cibles) {
+  const tbody = document.querySelector('#commerciaux-perf-table tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  state.utilisateurs.forEach(u => {
+    const tachesU = cibles.filter(c => c.responsable_id === u.id);
+    if (tachesU.length === 0) return;
+    const actives = tachesU.filter(c => !c.est_terminee).length;
+    const signes = tachesU.filter(c => c.statut_avancement === 'Signé').length;
+    const ca = tachesU.filter(c => c.statut_avancement === 'Signé').reduce((s, c) => s + (c.montant_estime || 0), 0);
+    const taux = tachesU.length > 0 ? Math.round((signes / tachesU.length) * 100) : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><strong>${u.prenom||''} ${u.nom||''}</strong></td><td>${actives}</td><td>${signes}</td><td>${formatEuro(ca)} €</td><td>${taux}%</td>`;
+    tbody.appendChild(tr);
+  });
+  if (!tbody.hasChildNodes()) tbody.innerHTML = '<tr><td colspan="5" class="empty">Aucune donnée</td></tr>';
 }
 
 function setupRevueValueSelect() {

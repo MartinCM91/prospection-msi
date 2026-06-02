@@ -119,7 +119,8 @@ async function loadData() {
     sb.from('jalons_msi').select('*').order('date_debut'),
     sb.from('cible_resultats_attendus').select('*'),
     sb.from('projets_msi').select('*').order('created_at'),
-    sb.from('paiements_phases').select('*').order('phase')
+    sb.from('paiements_phases').select('*').order('phase'),
+    sb.from('historique_etapes').select('*').order('date_passage')
   ]);
   state.produits = results[0].data || [];
   state.sources = results[1].data || [];
@@ -138,6 +139,7 @@ async function loadData() {
   state.cibleResultats = results[14].data || [];
   state.projetsMsi = results[15]?.data || [];
   state.paiementsPhases = results[16]?.data || [];
+  state.historiqueEtapes = results[17]?.data || [];
 }
 
 function formatEuro(n) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n || 0); }
@@ -911,6 +913,18 @@ document.addEventListener('change', e => {
   if (e.target.id === 'cible-domaine') updateResultatsSelect(parseInt(e.target.value));
 });
 
+async function enregistrerPassageEtape(cibleId, etape) {
+  // Ne pas dupliquer si déjà passé par cette étape récemment (évite les doublons)
+  const dejaPasse = (state.historiqueEtapes || []).some(h => h.cible_id === cibleId && h.etape === etape);
+  if (dejaPasse) return;
+  await sb.from('historique_etapes').insert([{
+    cible_id: cibleId,
+    etape: etape,
+    date_passage: new Date().toISOString(),
+    produit_id: state.produitActif?.id || null
+  }]);
+}
+
 async function saveCible(e) {
   e.preventDefault();
   const id = document.getElementById('cible-id').value;
@@ -983,6 +997,8 @@ async function saveCible(e) {
     await saveProjetsMsi(cibleId);
     // Sauvegarder les paiements par phase (col 6)
     await savePaiementsPhases(cibleId);
+    // Tracer le passage d'étape dans l'historique
+    await enregistrerPassageEtape(cibleId, colNum);
   }
 
   // CRÉATION AUTO d'un ticket Facturation quand un contrat est signé
@@ -1524,6 +1540,8 @@ function renderKanban() {
         if (!cible.type_finance) newData.type_finance = 'Facturation';
       }
       await sb.from('cibles_msi').update(newData).eq('id', cibleId);
+      // Tracer le passage d'étape dans l'historique
+      await enregistrerPassageEtape(cibleId, col.numero);
       await loadData();
       // Ouvrir la modale avec la bonne colonne pré-sélectionnée
       const updatedCible = state.cibles.find(c => c.id === cibleId);
@@ -2547,33 +2565,62 @@ function renderAnalyse() {
   }
   const periodeFiltre = periodeSel?.value || '';
   const cb = periodeFiltre ? cibles.filter(c => c.periode_msi === periodeFiltre) : cibles;
+  const cbIds = new Set(cb.map(c => c.id));
 
   // === 1. ENTONNOIR ===
-  // On compte les tâches ayant atteint AU MOINS chaque étape (cumulatif)
-  const atteint = n => cb.filter(c => getColonneCible(c) >= n || (c.statut_avancement === 'Signé')).length;
-  // Plus juste : compter par colonne max atteinte
-  const parCol = {};
-  for (let i = 1; i <= 6; i++) parCol[i] = cb.filter(c => getColonneCible(c) === i).length;
-  // Cumulatif : nb de tâches ayant atteint l'étape i ou plus
-  const cumul = {};
-  for (let i = 1; i <= 6; i++) { cumul[i] = 0; for (let j = i; j <= 6; j++) cumul[i] += parCol[j]; }
-  // Signés / perdus
+  // (a) PHOTO INSTANT T : nb de tâches actuellement dans chaque colonne
+  const parColNow = {};
+  for (let i = 1; i <= 6; i++) parColNow[i] = cb.filter(c => getColonneCible(c) === i).length;
   const nbSignes = cb.filter(c => c.statut_avancement === 'Signé').length;
   const nbPerdus = cb.filter(c => c.statut_avancement === 'Perdu').length;
 
-  // Étapes de l'entonnoir
-  const etapes = [
-    { label: 'Leads', val: cumul[1] },
-    { label: 'Phoning', val: cumul[2] },
-    { label: 'RDV Qualif.', val: cumul[3] },
-    { label: 'Rédaction', val: cumul[4] },
-    { label: 'Avancement', val: cumul[5] },
+  const etapesNow = [
+    { label: 'Leads', val: parColNow[1] },
+    { label: 'Phoning', val: parColNow[2] },
+    { label: 'RDV Qualif.', val: parColNow[3] },
+    { label: 'Rédaction', val: parColNow[4] },
+    { label: 'Avancement', val: parColNow[5] },
+    { label: 'Finance', val: parColNow[6] }
+  ];
+
+  // (b) HISTORIQUE CUMULÉ : nb de tâches qui sont PASSÉES par chaque étape (depuis historique_etapes)
+  const hist = (state.historiqueEtapes || []).filter(h => cbIds.has(h.cible_id));
+  const passeParEtape = {};
+  for (let i = 1; i <= 6; i++) {
+    const idsUniques = new Set(hist.filter(h => h.etape === i).map(h => h.cible_id));
+    passeParEtape[i] = idsUniques.size;
+  }
+  const etapesHist = [
+    { label: 'Leads', val: passeParEtape[1] },
+    { label: 'Phoning', val: passeParEtape[2] },
+    { label: 'RDV Qualif.', val: passeParEtape[3] },
+    { label: 'Rédaction', val: passeParEtape[4] },
+    { label: 'Avancement', val: passeParEtape[5] },
     { label: 'Signés', val: nbSignes }
   ];
 
-  renderEntonnoirChart(etapes);
-  renderTauxConvChart(etapes);
-  renderEntonnoirTable(etapes);
+  renderEntonnoirChart(etapesNow);       // photo instant T
+  renderTauxConvChart(etapesHist);       // taux basés sur l'historique
+  renderEntonnoirTable(etapesHist);      // tableau basé sur l'historique
+
+  // === INDICATEURS DIRECTEUR ===
+  const totalAffaires = cb.length;
+  const caSigneTotal = cb.filter(c => c.statut_avancement === 'Signé').reduce((s, c) => s + (c.montant_estime || 0), 0);
+  const panierMoyen = nbSignes > 0 ? Math.round(caSigneTotal / nbSignes) : 0;
+  // Délai moyen de signature
+  const delais = cb.filter(c => c.statut_avancement === 'Signé' && c.date_signature && (c.date_creation || c.created_at)).map(c => {
+    const debut = new Date(c.date_creation || c.created_at);
+    const fin = new Date(c.date_signature);
+    return Math.round((fin - debut) / (1000 * 60 * 60 * 24));
+  }).filter(d => d >= 0);
+  const delaiMoyen = delais.length > 0 ? Math.round(delais.reduce((a, b) => a + b, 0) / delais.length) : null;
+  // Taux de perte
+  const totalClos = nbSignes + nbPerdus;
+  const tauxPerte = totalClos > 0 ? Math.round((nbPerdus / totalClos) * 100) : 0;
+  // Valeur du pipeline (CA en négociation)
+  const valeurPipeline = cb.filter(c => c.statut_avancement === 'Négociation' && !c.est_terminee).reduce((s, c) => s + (c.montant_estime || 0), 0);
+
+  renderIndicateursDirecteur({ panierMoyen, delaiMoyen, tauxPerte, valeurPipeline, nbSignes, nbPerdus });
 
   // === 2. PERFORMANCE PAR SOURCE ===
   const sourcesStats = {};
@@ -2596,6 +2643,17 @@ function renderAnalyse() {
 
   // === 4. PERFORMANCE PAR COMMERCIAL ===
   renderCommerciauxPerfTable(cb);
+}
+
+function renderIndicateursDirecteur(d) {
+  const container = document.getElementById('indicateurs-directeur');
+  if (!container) return;
+  container.innerHTML = `
+    <div class="kpi-card kpi-color-green"><div class="kpi-label">Panier moyen</div><div class="kpi-value">${formatEuro(d.panierMoyen)} €</div><div class="kpi-objectif">CA signé / ${d.nbSignes} signés</div></div>
+    <div class="kpi-card kpi-color-blue"><div class="kpi-label">Délai moyen de signature</div><div class="kpi-value">${d.delaiMoyen != null ? d.delaiMoyen + ' j' : '—'}</div><div class="kpi-objectif">${d.delaiMoyen != null ? 'De la création à la signature' : 'Pas assez de données'}</div></div>
+    <div class="kpi-card kpi-color-red"><div class="kpi-label">Taux de perte</div><div class="kpi-value">${d.tauxPerte} %</div><div class="kpi-objectif">${d.nbPerdus} perdus / ${d.nbSignes + d.nbPerdus} clos</div></div>
+    <div class="kpi-card kpi-color-purple"><div class="kpi-label">Valeur du pipeline</div><div class="kpi-value">${formatEuro(d.valeurPipeline)} €</div><div class="kpi-objectif">CA en négociation</div></div>
+  `;
 }
 
 function renderEntonnoirChart(etapes) {
@@ -2640,9 +2698,10 @@ function renderEntonnoirTable(etapes) {
   for (let i = 1; i < etapes.length; i++) {
     const taux = etapes[i-1].val > 0 ? Math.round((etapes[i].val / etapes[i-1].val) * 100) : 0;
     let interpretation = '', cls = '';
-    if (taux >= 70) { interpretation = '✅ Très bon'; cls = 'perf-bon'; }
+    if (etapes[i-1].val === 0) { interpretation = '— Aucune donnée'; }
+    else if (taux >= 70) { interpretation = '✅ Très bon passage'; cls = 'perf-bon'; }
     else if (taux >= 40) { interpretation = '🟠 Correct'; cls = 'perf-moyen'; }
-    else { interpretation = '🔴 Point de perte'; cls = 'perf-faible'; }
+    else { interpretation = '🔴 Point de perte à travailler'; cls = 'perf-faible'; }
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${etapes[i-1].label} → ${etapes[i].label}</td><td>${etapes[i-1].val}</td><td>${etapes[i].val}</td><td class="${cls}"><strong>${taux}%</strong></td><td>${interpretation}</td>`;
     tbody.appendChild(tr);
@@ -2913,15 +2972,22 @@ function renderRevueContent() {
     </div>
   `;
 
-  // Taux de conversion
-  const tauxConv = nbRdvEffectues > 0 ? Math.round((nbSigne / nbRdvEffectues) * 100) : 0;
-  const tauxClotureOffre = nbOffres > 0 ? Math.round((nbSigne / nbOffres) * 100) : 0;
-  const tauxContactRdv = nbContacts > 0 ? Math.round((nbRdvEffectues / nbContacts) * 100) : 0;
+  // Taux de conversion — basés sur l'historique des tâches de la période (cohérent avec l'entonnoir)
+  const cbIdsRevue = new Set(ciblesFiltrees.map(c => c.id));
+  const histRevue = (state.historiqueEtapes || []).filter(h => cbIdsRevue.has(h.cible_id));
+  const passeRevue = {};
+  for (let i = 1; i <= 6; i++) passeRevue[i] = new Set(histRevue.filter(h => h.etape === i).map(h => h.cible_id)).size;
+  const tNb = { phoning: passeRevue[2], rdv: passeRevue[3], offre: passeRevue[4], signe: nbSigne };
+  const tauxContactRdv = tNb.phoning > 0 ? Math.round((tNb.rdv / tNb.phoning) * 100) : 0;
+  const tauxRdvOffre = tNb.rdv > 0 ? Math.round((tNb.offre / tNb.rdv) * 100) : 0;
+  const tauxClotureOffre = tNb.offre > 0 ? Math.min(100, Math.round((tNb.signe / tNb.offre) * 100)) : 0;
+  const tauxConv = tNb.rdv > 0 ? Math.min(100, Math.round((tNb.signe / tNb.rdv) * 100)) : 0;
   html += `
-    <h3>Taux de conversion</h3>
+    <h3>Taux de conversion (basés sur les tâches)</h3>
+    <p class="hint" style="margin-top:0;">Calculés depuis l'historique des passages d'étapes, cohérents avec l'entonnoir.</p>
     <div class="revue-conv-grid">
-      <div class="revue-conv-card"><div class="revue-conv-label">Contacts → RDV</div><div class="revue-conv-value">${tauxContactRdv}%</div></div>
-      <div class="revue-conv-card"><div class="revue-conv-label">RDV → Offre</div><div class="revue-conv-value">${nbRdvEffectues > 0 ? Math.round((nbOffres / nbRdvEffectues) * 100) : 0}%</div></div>
+      <div class="revue-conv-card"><div class="revue-conv-label">Phoning → RDV</div><div class="revue-conv-value">${tauxContactRdv}%</div></div>
+      <div class="revue-conv-card"><div class="revue-conv-label">RDV → Offre</div><div class="revue-conv-value">${tauxRdvOffre}%</div></div>
       <div class="revue-conv-card"><div class="revue-conv-label">Offres → Signature</div><div class="revue-conv-value">${tauxClotureOffre}%</div></div>
       <div class="revue-conv-card revue-conv-card-highlight"><div class="revue-conv-label">RDV → Signature</div><div class="revue-conv-value">${tauxConv}%</div></div>
     </div>

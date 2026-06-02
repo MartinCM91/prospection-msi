@@ -153,15 +153,16 @@ function fillYearSelect(el, current, range = 5) {
   }
 }
 
-function fillPeriodeSelects() {
-  // Collecter toutes les périodes connues (objectifs + tâches + projets MSI + défauts)
+function getPeriodesList() {
   const periodesSet = new Set(['2526B','2627A','2627B','2728A']);
   state.objectifsAnnuels.forEach(o => { if (o.periode_msi && o.periode_msi !== 'ANNUEL') periodesSet.add(o.periode_msi); });
   state.cibles.forEach(c => { if (c.periode_msi) periodesSet.add(c.periode_msi); });
   (state.projetsMsi||[]).forEach(p => { if (p.periode_msi) periodesSet.add(p.periode_msi); });
-  const periodes = Array.from(periodesSet).sort();
+  return Array.from(periodesSet).sort();
+}
 
-  // Peupler tous les selects de période
+function fillPeriodeSelects() {
+  const periodes = getPeriodesList();
   ['plan-periode', 'kpi-periode-filtre', 'cible-periode'].forEach(selectId => {
     const sel = document.getElementById(selectId);
     if (!sel) return;
@@ -401,7 +402,12 @@ function setupNav() {
   document.getElementById('btn-add-source-cal').addEventListener('click', () => openModalSource());
   document.getElementById('btn-add-jalon').addEventListener('click', () => openModalJalon());
   document.getElementById('btn-add-periode').addEventListener('click', () => openModalPeriode());
+  document.getElementById('btn-param-add-periode')?.addEventListener('click', () => openModalPeriode());
   document.getElementById('btn-add-cible').addEventListener('click', () => openModalCible());
+  document.getElementById('btn-toggle-resultats')?.addEventListener('click', () => {
+    const s = document.getElementById('resultats-attendus-section');
+    if (s) s.style.display = s.style.display === 'none' ? 'block' : 'none';
+  });
 }
 
 function setupHebdo() {
@@ -554,6 +560,8 @@ function openModalCible(prefill = {}) {
     if (existingResultats.length === 0 && prefill.resultat_attendu) state.tempResultats.push(prefill.resultat_attendu);
   }
   renderResultatsTags();
+  const resultatsSection = document.getElementById('resultats-attendus-section');
+  if (resultatsSection) resultatsSection.style.display = state.tempResultats.length > 0 ? 'block' : 'none';
 
   if (prefill.id) {
     document.getElementById('cible-description').value = prefill.description_action || prefill.intitule || '';
@@ -637,8 +645,11 @@ function updateColonneSections(colNum) {
 // PROJETS MSI (sous-formulaire col 5)
 // ============================================================
 function initProjetsMsiListeners() {
+  if (state._projetsMsiListenerInit) return;
+  state._projetsMsiListenerInit = true;
   document.getElementById('btn-add-projet-msi')?.addEventListener('click', () => {
-    state.tempProjetsMsi.push({ periode_msi: '2627A', montant: 0, nb_equipes: 1, intitule: '' });
+    const defaultPeriode = state.tempProjetsMsi.length > 0 ? state.tempProjetsMsi[state.tempProjetsMsi.length-1].periode_msi : '2627A';
+    state.tempProjetsMsi.push({ periode_msi: defaultPeriode, montant: 0, nb_equipes: 1, intitule: '' });
     renderProjetsMsiList();
   });
 }
@@ -683,19 +694,15 @@ function editProjetMsi(index) {
   const container = document.getElementById('projets-msi-list');
   const card = container.querySelector(`[data-index="${index}"]`);
   if (!card) return;
+  const periodesOpts = getPeriodesList().map(per => `<option value="${per}" ${p.periode_msi===per?'selected':''}>${per}</option>`).join('');
   card.innerHTML = `
     <div class="projet-msi-edit-form">
       <div class="form-row form-row-2">
         <div class="form-field"><label>Intitulé projet</label><input type="text" class="pm-intitule" value="${p.intitule || ''}" placeholder="Ex: Projet amélioration continue"></div>
-        <div class="form-field"><label>Période MSI</label><select class="pm-periode">
-          <option value="2526B" ${p.periode_msi==='2526B'?'selected':''}>2526B</option>
-          <option value="2627A" ${p.periode_msi==='2627A'?'selected':''}>2627A</option>
-          <option value="2627B" ${p.periode_msi==='2627B'?'selected':''}>2627B</option>
-          <option value="2728A" ${p.periode_msi==='2728A'?'selected':''}>2728A</option>
-        </select></div>
+        <div class="form-field"><label>Période MSI</label><select class="pm-periode">${periodesOpts}</select></div>
       </div>
       <div class="form-row form-row-2">
-        <div class="form-field"><label>Montant (€)</label><input type="number" class="pm-montant" min="0" step="100" value="${p.montant || 0}"></div>
+        <div class="form-field"><label>Montant (€)</label><input type="number" class="pm-montant" min="0" step="0.01" value="${p.montant || 0}"></div>
         <div class="form-field"><label>Nb équipes ICAM</label><input type="number" class="pm-equipes" min="1" value="${p.nb_equipes || 1}"></div>
       </div>
       <div style="text-align:right;margin-top:6px;">
@@ -733,6 +740,8 @@ async function saveProjetsMsi(cibleId) {
 // PAIEMENTS PAR PHASE (col 6 Finance)
 // ============================================================
 function initPaiementsListeners() {
+  if (state._paiementsListenerInit) return;
+  state._paiementsListenerInit = true;
   document.getElementById('btn-add-phase')?.addEventListener('click', () => {
     const nextPhase = state.tempPaiements.length > 0 ? Math.max(...state.tempPaiements.map(p => p.phase)) + 1 : 1;
     if (nextPhase > 5) { showToast('Maximum 5 phases', 'error'); return; }
@@ -1290,6 +1299,10 @@ async function deleteJalon() {
 // ============================================================
 function openModalPeriode() {
   document.getElementById('periode-form').reset();
+  const anneeSel = document.getElementById('periode-annee');
+  if (anneeSel) {
+    fillYearSelect(anneeSel, state.obj_annee || new Date().getFullYear());
+  }
   document.getElementById('modal-periode').classList.remove('hidden');
 }
 
@@ -1298,10 +1311,52 @@ async function savePeriode(e) {
   const code = document.getElementById('periode-code').value.trim().toUpperCase();
   const commentaire = document.getElementById('periode-commentaire').value;
   if (!code) return;
-  const exists = state.objectifsAnnuels.find(o => o.annee === state.obj_annee && o.periode_msi === code);
+  const anneeSel = document.getElementById('periode-annee');
+  const annee = anneeSel ? parseInt(anneeSel.value) : (state._periodeAnneeCible || state.obj_annee);
+  const exists = state.objectifsAnnuels.find(o => o.annee === annee && o.periode_msi === code);
   if (exists) { showToast('Cette période existe déjà', 'error'); return; }
-  await sb.from('objectifs_annuels').insert([{ annee: state.obj_annee, periode_msi: code, ca_cible: 0, msi_cible: 0, commentaire }]);
-  showToast('Période ajoutée', 'success'); closeM('modal-periode'); await loadData(); renderObjectifsAnnuels(); renderDashboard();
+  await sb.from('objectifs_annuels').insert([{ annee: annee, periode_msi: code, ca_cible: 0, msi_cible: 0, commentaire }]);
+  showToast('Période ajoutée', 'success'); closeM('modal-periode'); state._periodeAnneeCible = null; await loadData(); renderAll();
+}
+
+function renderParametres() {
+  // Tableau des périodes
+  const tbody = document.querySelector('#param-periodes-table tbody');
+  if (tbody) {
+    const periodesObj = state.objectifsAnnuels.filter(o => o.periode_msi !== 'ANNUEL');
+    tbody.innerHTML = '';
+    if (periodesObj.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">Aucune période. Cliquez "+ Nouvelle période".</td></tr>';
+    } else {
+      periodesObj.sort((a,b) => (a.annee - b.annee) || a.periode_msi.localeCompare(b.periode_msi)).forEach(o => {
+        const nbTaches = state.cibles.filter(c => c.periode_msi === o.periode_msi).length;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><strong>${o.periode_msi}</strong></td><td>${o.annee}</td><td>${o.commentaire || '—'}</td><td>${nbTaches}</td><td><button class="btn-danger btn-sm" data-del-periode="${o.id}">Supprimer</button></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('[data-del-periode]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const o = state.objectifsAnnuels.find(x => x.id === parseInt(btn.dataset.delPeriode));
+          const nbTaches = state.cibles.filter(c => c.periode_msi === o.periode_msi).length;
+          if (nbTaches > 0) { showToast(`Impossible : ${nbTaches} tâche(s) utilisent cette période`, 'error'); return; }
+          if (!confirm(`Supprimer la période ${o.periode_msi} ?`)) return;
+          await sb.from('objectifs_annuels').delete().eq('id', o.id);
+          showToast('Période supprimée', 'success'); await loadData(); renderAll();
+        });
+      });
+    }
+  }
+  // Tableau des utilisateurs
+  const tbodyU = document.querySelector('#param-users-table tbody');
+  if (tbodyU) {
+    tbodyU.innerHTML = '';
+    if (state.utilisateurs.length === 0) tbodyU.innerHTML = '<tr><td colspan="3" class="empty">Aucun utilisateur.</td></tr>';
+    else state.utilisateurs.forEach(u => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${u.prenom || '—'}</td><td>${u.nom || '—'}</td><td>${u.email || '—'}</td>`;
+      tbodyU.appendChild(tr);
+    });
+  }
 }
 // ============================================================
 // RENDUS
@@ -1317,6 +1372,7 @@ function renderAll() {
   renderObjectifsAnnuels();
   renderKpi6Table();
   renderObjectifsTable();
+  renderParametres();
   renderRevue();
 }
 
@@ -1426,6 +1482,7 @@ function renderKanbanCard(c, col, body) {
   card.style.borderLeftColor = col.couleur;
 
   const description = c.description_action || c.intitule || '(sans description)';
+  const colActuelle = getColonneCible(c);
 
   // Header avec checkbox
   let html = `
@@ -1437,35 +1494,55 @@ function renderKanbanCard(c, col, body) {
     </div>
   `;
 
-  // Résultats attendus (multiples)
-  const resultats = state.cibleResultats.filter(r => r.cible_id === c.id);
-  const resultatsLibelles = resultats.map(r => r.resultat_libelle);
-  if (resultatsLibelles.length === 0 && c.resultat_attendu) resultatsLibelles.push(c.resultat_attendu);
-  if (resultatsLibelles.length > 0) {
-    html += `<div class="kanban-card-resultat"><strong>Attendu :</strong> ${resultatsLibelles.join(', ')}</div>`;
+  // FIL D'AVANCEMENT : 6 pastilles montrant l'étape actuelle
+  html += `<div class="kanban-card-progress" title="Étape ${colActuelle}/6">`;
+  for (let i = 1; i <= 6; i++) {
+    const colDef = COLONNES_V8.find(co => co.numero === i);
+    let cls = 'progress-step';
+    if (i < colActuelle) cls += ' done';
+    else if (i === colActuelle) cls += ' current';
+    html += `<span class="${cls}" style="${i <= colActuelle ? 'background:' + colDef.couleur + ';' : ''}" title="${colDef.libelle}"></span>`;
   }
+  html += `</div>`;
+  html += `<div class="kanban-card-etape-label">Étape ${colActuelle}/6 · ${COLONNES_V8.find(co=>co.numero===colActuelle).libelle}</div>`;
 
-  // Nombres attendus
-  if (c.nombre_contacts_attendus > 0 || c.nombre_rdv_attendus > 0) {
-    html += `<div class="kanban-card-nb">`;
-    if (c.nombre_contacts_attendus > 0) html += `<span>👥 ${c.nombre_contacts_attendus} contacts</span>`;
-    if (c.nombre_rdv_attendus > 0) html += `<span>🗓️ ${c.nombre_rdv_attendus} RDV</span>`;
-    html += `</div>`;
+  // Infos contextuelles selon la colonne
+  html += `<div class="kanban-card-infos">`;
+  if (colActuelle === 1) {
+    if (c.nombre_contacts_attendus > 0) html += `<span class="kc-info">👥 ${c.nombre_contacts_attendus} contacts visés</span>`;
+  } else if (colActuelle === 2) {
+    if (c.nb_appels > 0) html += `<span class="kc-info">📞 ${c.nb_appels} appels</span>`;
+    if (c.nombre_rdv_attendus > 0) html += `<span class="kc-info">🗓️ ${c.nombre_rdv_attendus} RDV visés</span>`;
+  } else if (colActuelle === 3) {
+    if (c.nb_besoins_id > 0) html += `<span class="kc-info">🔍 ${c.nb_besoins_id} besoins id.</span>`;
+    if (c.nb_besoins_ret > 0) html += `<span class="kc-info">✓ ${c.nb_besoins_ret} retenus</span>`;
+  } else if (colActuelle === 4) {
+    if (c.nb_prop_real > 0) html += `<span class="kc-info">📝 ${c.nb_prop_real} propositions</span>`;
+    if (c.nb_prop_ret > 0) html += `<span class="kc-info">✓ ${c.nb_prop_ret} retenues</span>`;
+  } else if (colActuelle === 5) {
+    if (c.statut_avancement) {
+      const statutClass = c.statut_avancement === 'Signé' ? 'statut-signe' : (c.statut_avancement === 'Perdu' ? 'statut-perdu' : 'statut-nego');
+      html += `<span class="kc-info ${statutClass}">${c.statut_avancement === 'Signé' ? '✅' : (c.statut_avancement === 'Perdu' ? '❌' : '💬')} ${c.statut_avancement}</span>`;
+    }
+    if (c.montant_estime > 0) html += `<span class="kc-info">💰 ${formatEuro(c.montant_estime)} €</span>`;
+    if (c.periode_msi) html += `<span class="kc-info">📅 ${c.periode_msi}</span>`;
+  } else if (colActuelle === 6) {
+    if (c.type_finance) html += `<span class="kc-info kc-finance">${c.type_finance === 'Facturation' ? '🧾' : '🔔'} ${c.type_finance}</span>`;
   }
+  html += `</div>`;
 
-  if (src) html += `<div class="kanban-card-resultat" style="font-size:10px;">${src.nom}</div>`;
+  // Source (seulement pour col 1-4)
+  if (src && colActuelle <= 4) html += `<div class="kanban-card-source">📍 ${src.nom}</div>`;
 
+  // Footer : responsable + échéance
   html += `<div class="kanban-card-meta">`;
-  html += `<span>${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '—'}</span>`;
-  if (col.numero === 5 && c.statut_avancement) {
-    html += `<span class="kanban-card-statut">${c.statut_avancement}</span>`;
-  } else if (c.date_echeance) {
+  html += `<span class="kc-resp">${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '—'}</span>`;
+  if (c.date_echeance && !c.est_terminee) {
     const isOver = isTacheEnRetard(c);
     html += `<span class="kanban-card-echeance${isOver ? ' overdue' : ''}">${new Date(c.date_echeance).toLocaleDateString('fr-FR')}${isOver ? ' ⚠️' : ''}</span>`;
-  } else if (!c.est_terminee) {
+  } else if (!c.date_echeance && !c.est_terminee) {
     html += `<span class="kanban-card-echeance missing">⚠️ Sans échéance</span>`;
   }
-  if (col.numero === 5 && c.montant_estime > 0) html += `<span class="kanban-card-montant">${formatEuro(c.montant_estime)} €</span>`;
   html += `</div>`;
 
   // Projets MSI sur la carte (col 5)

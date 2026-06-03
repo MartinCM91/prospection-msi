@@ -447,3 +447,26 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .perf-bon { color: #1D9E75; font-weight: 600; }
 .perf-moyen { color: #BA7517; font-weight: 600; }
 .perf-faible { color: #A32D2D; font-weight: 600; }
+
+/* === FINANCE - RÉSUMÉ + FACTURES === */
+.finance-summary { margin: 12px 0; padding: 14px; background: #F0F4F9; border-radius: 8px; border-left: 4px solid #1F3864; }
+.fin-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.fin-summary-item { padding: 8px; }
+.fin-summary-label { font-size: 11px; color: #5F5E5A; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+.fin-summary-value { font-size: 20px; font-weight: 700; color: #1F3864; margin-top: 2px; }
+.fin-summary-recu .fin-summary-value { color: #1D9E75; }
+.fin-summary-restant .fin-summary-value { color: #A32D2D; }
+.fin-summary-warn { background: #FFF8E6; border-radius: 4px; }
+.fin-summary-warn .fin-summary-value { color: #BA7517; }
+
+/* Statuts factures */
+.facture-card.emise { border-left: 4px solid #888780; }
+.facture-card.partiel { border-left: 4px solid #BA7517; background: #FFFCF2; }
+.facture-card.paye { border-left: 4px solid #1D9E75; background: #F0FBF6; }
+.facture-card.retard { border-left: 4px solid #A32D2D; background: #FFF5F5; }
+.facture-statut-badge { font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+.facture-emise { background: #E5E3DC; color: #2C2C2A; }
+.facture-partiel { background: #FAEEDA; color: #633806; }
+.facture-paye { background: #E1F5EE; color: #085041; }
+.facture-retard { background: #FCEBEB; color: #A32D2D; }
+.pp-reste { background: #F5F5F2 !important; font-weight: 600; color: #A32D2D !important; }

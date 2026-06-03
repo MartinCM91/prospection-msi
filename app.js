@@ -85,6 +85,9 @@ async function init() {
   state.kpi_rdv_cible = parseInt(localStorage.getItem('kpi_rdv_cible') || '4');
   state.kpi_prop_cible = parseInt(localStorage.getItem('kpi_prop_cible') || '8');
   await loadData();
+  // Bascule auto Facturation → Relance pour les échéances dépassées
+  await basculerEnRelanceSiBesoin();
+  await loadData();
   const { data: pref } = await sb.from('preferences_utilisateur').select('*').eq('utilisateur_id', state.user.id).single();
   if (pref && pref.produit_courant_id) state.produitActif = state.produits.find(p => p.id === pref.produit_courant_id);
   if (!state.produitActif && state.produits.length > 0) state.produitActif = state.produits[0];
@@ -575,6 +578,7 @@ function openModalCible(prefill = {}) {
     document.getElementById('cible-nb-contacts').value = prefill.nombre_contacts_attendus || 0;
     document.getElementById('cible-nb-rdv').value = prefill.nombre_rdv_attendus || 0;
     if (document.getElementById('cible-nb-appels')) document.getElementById('cible-nb-appels').value = prefill.nb_appels || 0;
+    if (document.getElementById('cible-nb-rdv-obtenus')) document.getElementById('cible-nb-rdv-obtenus').value = prefill.nb_rdv_obtenus || 0;
     // Champs col 3
     const el3a = document.getElementById('cible-nb-besoins-id');
     const el3b = document.getElementById('cible-nb-besoins-ret');
@@ -622,6 +626,9 @@ function openModalCible(prefill = {}) {
     const tf = document.getElementById('cible-type-finance');
     if (tf) tf.value = prefill.type_finance;
   }
+  // Charger montant global pour la section Finance (col 6)
+  const mgFin = document.getElementById('cible-montant-global-fin');
+  if (mgFin) mgFin.value = prefill.montant_estime || 0;
   renderPaiementsPhasesList();
   initPaiementsListeners();
   document.getElementById('modal-cible').classList.remove('hidden');
@@ -760,83 +767,132 @@ function initPaiementsListeners() {
 function renderPaiementsPhasesList() {
   const container = document.getElementById('paiements-phases-list');
   if (!container) return;
+
+  // Mise à jour du résumé Finance
+  const summary = document.getElementById('finance-summary');
+  const montantGlobalEl = document.getElementById('cible-montant-global-fin');
+  const montantGlobal = montantGlobalEl ? parseFloat(montantGlobalEl.value) || 0 : 0;
+  const totalFacture = state.tempPaiements.reduce((s, p) => s + (p.montant || 0), 0);
+  const totalRecu = state.tempPaiements.reduce((s, p) => s + (p.montant_recu || 0), 0);
+  const restantAPayer = totalFacture - totalRecu;
+  const nonFacture = Math.max(0, montantGlobal - totalFacture);
+  if (summary) {
+    summary.innerHTML = `
+      <div class="fin-summary-grid">
+        <div class="fin-summary-item"><div class="fin-summary-label">Montant contrat</div><div class="fin-summary-value">${formatEuro(montantGlobal)} €</div></div>
+        <div class="fin-summary-item"><div class="fin-summary-label">Facturé</div><div class="fin-summary-value">${formatEuro(totalFacture)} €</div></div>
+        <div class="fin-summary-item fin-summary-recu"><div class="fin-summary-label">Reçu</div><div class="fin-summary-value">${formatEuro(totalRecu)} €</div></div>
+        <div class="fin-summary-item fin-summary-restant"><div class="fin-summary-label">Reste à payer</div><div class="fin-summary-value">${formatEuro(restantAPayer)} €</div></div>
+        ${nonFacture > 0 ? `<div class="fin-summary-item fin-summary-warn"><div class="fin-summary-label">⚠️ Non encore facturé</div><div class="fin-summary-value">${formatEuro(nonFacture)} €</div></div>` : ''}
+      </div>
+    `;
+  }
+
   if (state.tempPaiements.length === 0) {
-    container.innerHTML = '<p class="hint" style="margin:8px 0;">Aucune phase. Cliquez "+ Ajouter une phase" pour commencer.</p>';
+    container.innerHTML = '<p class="hint" style="margin:8px 0;">Aucune facture. Cliquez "+ Ajouter une facture" pour commencer.</p>';
     return;
   }
-  const totalMontant = state.tempPaiements.reduce((s, p) => s + (p.montant || 0), 0);
-  const totalPaye = state.tempPaiements.filter(p => p.est_paye).reduce((s, p) => s + (p.montant || 0), 0);
-  const totalRestant = totalMontant - totalPaye;
 
-  let html = `<div class="paiements-summary">
-    <span>Total : <strong>${formatEuro(totalMontant)} €</strong></span>
-    <span class="paiement-paye">Payé : <strong>${formatEuro(totalPaye)} €</strong></span>
-    <span class="paiement-restant">Restant : <strong>${formatEuro(totalRestant)} €</strong></span>
-  </div>`;
+  container.innerHTML = state.tempPaiements.map((p, i) => {
+    // Calcul du statut automatique
+    const montantFact = p.montant || 0;
+    const montantRecu = p.montant_recu || 0;
+    const reste = montantFact - montantRecu;
+    const enRetard = reste > 0.01 && p.date_echeance_paiement && new Date(p.date_echeance_paiement) < new Date();
+    let statut, statutClass;
+    if (reste <= 0.01 && montantFact > 0) { statut = '✅ Payée intégralement'; statutClass = 'paye'; }
+    else if (montantRecu > 0 && reste > 0.01) { statut = '🔸 Payée partiellement'; statutClass = 'partiel'; }
+    else if (enRetard) { statut = '⚠️ En retard — relance'; statutClass = 'retard'; }
+    else { statut = '📝 Émise (en attente)'; statutClass = 'emise'; }
 
-  html += state.tempPaiements.map((p, i) => {
-    const enRetard = !p.est_paye && p.date_echeance_paiement && new Date(p.date_echeance_paiement) < new Date();
-    return `<div class="paiement-phase-card ${p.est_paye ? 'paye' : ''} ${enRetard ? 'en-retard' : ''}" data-index="${i}">
+    return `<div class="paiement-phase-card facture-card ${statutClass}" data-index="${i}">
       <div class="paiement-phase-header">
-        <span class="paiement-phase-num">Phase ${p.phase}</span>
-        <label class="paiement-check-label"><input type="checkbox" class="paiement-check" data-index="${i}" ${p.est_paye ? 'checked' : ''}> ${p.est_paye ? '✅ Payé' : '⏳ Non payé'}</label>
-        ${enRetard ? '<span class="paiement-alerte">⚠️ EN RETARD</span>' : ''}
-        <button type="button" class="btn-paiement-delete" data-index="${i}">🗑️</button>
+        <span class="paiement-phase-num">Facture ${i + 1}</span>
+        <span class="facture-statut-badge facture-${statutClass}">${statut}</span>
+        <button type="button" class="btn-paiement-delete" data-index="${i}" title="Supprimer">🗑️</button>
       </div>
       <div class="paiement-phase-body">
         <div class="form-row form-row-2">
-          <div class="form-field"><label>Montant (€)</label><input type="number" class="pp-montant" data-index="${i}" min="0" step="0.01" value="${p.montant || 0}"></div>
+          <div class="form-field"><label>N° facture</label><input type="text" class="pp-numfact" data-index="${i}" value="${p.numero_facture || ''}" placeholder="Ex : F2026-001"></div>
           <div class="form-field"><label>Échéance paiement</label><input type="date" class="pp-echeance" data-index="${i}" value="${p.date_echeance_paiement || ''}"></div>
         </div>
         <div class="form-row form-row-2">
-          <div class="form-field"><label>Date paiement effectif</label><input type="date" class="pp-date-paye" data-index="${i}" value="${p.date_paiement || ''}" ${!p.est_paye ? 'disabled' : ''}></div>
-          <div class="form-field"><label>N° facture</label><input type="text" class="pp-notes" data-index="${i}" value="${p.notes || ''}"></div>
+          <div class="form-field"><label>Montant facturé (€)</label><input type="number" class="pp-montant" data-index="${i}" min="0" step="0.01" value="${montantFact}"></div>
+          <div class="form-field"><label>Montant reçu (€)</label><input type="number" class="pp-recu" data-index="${i}" min="0" step="0.01" value="${montantRecu}" placeholder="0 si non payée"></div>
+        </div>
+        <div class="form-row form-row-2">
+          <div class="form-field"><label>Date paiement effectif</label><input type="date" class="pp-date-paye" data-index="${i}" value="${p.date_paiement || ''}"></div>
+          <div class="form-field"><label>Reste à payer</label><input type="text" value="${formatEuro(reste)} €" disabled class="pp-reste"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>Notes</label><input type="text" class="pp-notes" data-index="${i}" value="${p.notes || ''}" placeholder="Ex : Paiement par virement le 15/02"></div>
         </div>
       </div>
     </div>`;
   }).join('');
 
-  container.innerHTML = html;
-
   // Listeners
-  container.querySelectorAll('.paiement-check').forEach(cb => {
-    cb.addEventListener('change', e => {
+  container.querySelectorAll('.pp-montant').forEach(el => {
+    el.addEventListener('input', e => {
+      state.tempPaiements[parseInt(e.target.dataset.index)].montant = parseFloat(e.target.value) || 0;
+      renderPaiementsPhasesList();
+    });
+  });
+  container.querySelectorAll('.pp-recu').forEach(el => {
+    el.addEventListener('input', e => {
       const idx = parseInt(e.target.dataset.index);
-      state.tempPaiements[idx].est_paye = e.target.checked;
-      if (e.target.checked && !state.tempPaiements[idx].date_paiement) {
-        state.tempPaiements[idx].date_paiement = new Date().toISOString().split('T')[0];
+      const val = parseFloat(e.target.value) || 0;
+      state.tempPaiements[idx].montant_recu = val;
+      // Si totalement payé, marquer est_paye + date paiement auto
+      const p = state.tempPaiements[idx];
+      if (Math.abs(val - (p.montant || 0)) < 0.01 && val > 0) {
+        p.est_paye = true;
+        if (!p.date_paiement) p.date_paiement = new Date().toISOString().split('T')[0];
+      } else {
+        p.est_paye = false;
       }
       renderPaiementsPhasesList();
     });
   });
-  container.querySelectorAll('.pp-montant').forEach(el => {
-    el.addEventListener('change', e => { state.tempPaiements[parseInt(e.target.dataset.index)].montant = parseFloat(e.target.value) || 0; });
-  });
   container.querySelectorAll('.pp-echeance').forEach(el => {
-    el.addEventListener('change', e => { state.tempPaiements[parseInt(e.target.dataset.index)].date_echeance_paiement = e.target.value; });
+    el.addEventListener('change', e => { state.tempPaiements[parseInt(e.target.dataset.index)].date_echeance_paiement = e.target.value; renderPaiementsPhasesList(); });
   });
   container.querySelectorAll('.pp-date-paye').forEach(el => {
-    el.addEventListener('change', e => { state.tempPaiements[parseInt(e.target.dataset.index)].date_paiement = e.target.value; });
+    el.addEventListener('change', e => {
+      const idx = parseInt(e.target.dataset.index);
+      state.tempPaiements[idx].date_paiement = e.target.value;
+    });
   });
   container.querySelectorAll('.pp-notes').forEach(el => {
-    el.addEventListener('change', e => { state.tempPaiements[parseInt(e.target.dataset.index)].notes = e.target.value; });
+    el.addEventListener('input', e => { state.tempPaiements[parseInt(e.target.dataset.index)].notes = e.target.value; });
+  });
+  container.querySelectorAll('.pp-numfact').forEach(el => {
+    el.addEventListener('input', e => { state.tempPaiements[parseInt(e.target.dataset.index)].numero_facture = e.target.value; });
   });
   container.querySelectorAll('.btn-paiement-delete').forEach(btn => {
-    btn.addEventListener('click', e => {
+    btn.addEventListener('click', () => {
       state.tempPaiements.splice(parseInt(btn.dataset.index), 1);
       renderPaiementsPhasesList();
     });
   });
+
+  // Le bouton + Ajouter facture (gestion centralisée pour éviter doublons)
+  if (montantGlobalEl && !montantGlobalEl.dataset.listenerInit) {
+    montantGlobalEl.addEventListener('input', () => renderPaiementsPhasesList());
+    montantGlobalEl.dataset.listenerInit = '1';
+  }
 }
 
 async function savePaiementsPhases(cibleId) {
   await sb.from('paiements_phases').delete().eq('cible_id', cibleId);
   if (state.tempPaiements.length > 0) {
-    const rows = state.tempPaiements.map(p => ({
+    const rows = state.tempPaiements.map((p, i) => ({
       cible_id: cibleId,
-      phase: p.phase,
+      phase: p.phase || (i + 1),
       montant: p.montant || 0,
-      est_paye: p.est_paye || false,
+      montant_recu: p.montant_recu || 0,
+      numero_facture: p.numero_facture || null,
+      est_paye: (p.montant_recu || 0) >= (p.montant || 0) && (p.montant || 0) > 0,
       date_echeance_paiement: p.date_echeance_paiement || null,
       date_paiement: p.date_paiement || null,
       notes: p.notes || null
@@ -913,6 +969,21 @@ document.addEventListener('change', e => {
   if (e.target.id === 'cible-domaine') updateResultatsSelect(parseInt(e.target.value));
 });
 
+async function basculerEnRelanceSiBesoin() {
+  // Pour chaque tâche Finance type "Facturation" : si au moins une facture non payée a son échéance dépassée → bascule en "Relance de paiement"
+  const cibleFinances = state.cibles.filter(c => c.type_finance === 'Facturation' && !c.est_terminee);
+  for (const cible of cibleFinances) {
+    const factures = (state.paiementsPhases || []).filter(p => p.cible_id === cible.id);
+    const enRetard = factures.some(f => {
+      const reste = (f.montant || 0) - (f.montant_recu || 0);
+      return reste > 0.01 && f.date_echeance_paiement && new Date(f.date_echeance_paiement) < new Date();
+    });
+    if (enRetard) {
+      await sb.from('cibles_msi').update({ type_finance: 'Relance de paiement', updated_at: new Date().toISOString() }).eq('id', cible.id);
+    }
+  }
+}
+
 async function enregistrerPassageEtape(cibleId, etape) {
   // Ne pas dupliquer si déjà passé par cette étape récemment (évite les doublons)
   const dejaPasse = (state.historiqueEtapes || []).some(h => h.cible_id === cibleId && h.etape === etape);
@@ -947,6 +1018,7 @@ async function saveCible(e) {
     nombre_contacts_attendus: parseInt(document.getElementById('cible-nb-contacts').value) || 0,
     nombre_rdv_attendus: parseInt(document.getElementById('cible-nb-rdv').value) || 0,
     nb_appels: parseInt(document.getElementById('cible-nb-appels')?.value) || 0,
+    nb_rdv_obtenus: parseInt(document.getElementById('cible-nb-rdv-obtenus')?.value) || 0,
     nb_besoins_id: parseInt(document.getElementById('cible-nb-besoins-id')?.value) || 0,
     nb_besoins_ret: parseInt(document.getElementById('cible-nb-besoins-ret')?.value) || 0,
     nb_prop_real: parseInt(document.getElementById('cible-nb-prop-real')?.value) || 0,
@@ -954,7 +1026,9 @@ async function saveCible(e) {
     date_echeance: document.getElementById('cible-echeance').value || null,
     etape: colNum,
     periode_msi: document.getElementById('cible-periode').value || null,
-    montant_estime: parseFloat(document.getElementById('cible-montant').value) || 0,
+    montant_estime: colNum === 6
+      ? (parseFloat(document.getElementById('cible-montant-global-fin')?.value) || parseFloat(document.getElementById('cible-montant').value) || 0)
+      : (parseFloat(document.getElementById('cible-montant').value) || 0),
     niveau_confiance: parseFloat(document.getElementById('cible-confiance').value) || 0.5,
     notes: document.getElementById('cible-notes').value || null,
     statut_avancement: colNum === 5 ? document.getElementById('cible-statut-avancement').value : null,
@@ -1827,19 +1901,17 @@ function renderDashboard() {
 
   document.getElementById('kpi-ca-signe').textContent = formatEuro(caSigne);
   document.getElementById('kpi-ca-cours').textContent = formatEuro(caEnCours);
-  // CA facturé et payé depuis paiements_phases
+  // CA facturation et restant depuis paiements_phases (montant_recu pour le restant)
   const allPaiements = (state.paiementsPhases || []).filter(p => {
     const cible = cibles.find(c => c.id === p.cible_id);
     return cible != null;
   });
   const caFacture = allPaiements.reduce((s, p) => s + (p.montant || 0), 0);
-  const caPaye = allPaiements.filter(p => p.est_paye).reduce((s, p) => s + (p.montant || 0), 0);
-  const caRestant = caFacture - caPaye;
+  const caRecu = allPaiements.reduce((s, p) => s + (p.montant_recu || 0), 0);
+  const caRestant = caFacture - caRecu;
   const elFacture = document.getElementById('kpi-ca-facture');
-  const elPaye = document.getElementById('kpi-ca-paye');
   const elCaRestant = document.getElementById('kpi-ca-restant');
   if (elFacture) elFacture.textContent = formatEuro(caFacture);
-  if (elPaye) elPaye.textContent = formatEuro(caPaye);
   if (elCaRestant) { elCaRestant.textContent = formatEuro(caRestant); elCaRestant.style.color = caRestant > 0 ? '#A32D2D' : '#1D9E75'; }
   document.getElementById('kpi-ca-objectif').textContent = formatEuro(caObjectif);
   document.getElementById('kpi-atteinte-ca').textContent = atteinteCA + ' %';
@@ -2565,43 +2637,40 @@ function renderAnalyse() {
   }
   const periodeFiltre = periodeSel?.value || '';
   const cb = periodeFiltre ? cibles.filter(c => c.periode_msi === periodeFiltre) : cibles;
-  const cbIds = new Set(cb.map(c => c.id));
 
-  // === 1. ENTONNOIR ===
-  // (a) PHOTO INSTANT T : nb de tâches actuellement dans chaque colonne
+  // === 1. ENTONNOIR (sommes des champs réels des tickets) ===
+  // Photo instant T (nb tâches par colonne)
   const parColNow = {};
   for (let i = 1; i <= 6; i++) parColNow[i] = cb.filter(c => getColonneCible(c) === i).length;
   const nbSignes = cb.filter(c => c.statut_avancement === 'Signé').length;
   const nbPerdus = cb.filter(c => c.statut_avancement === 'Perdu').length;
 
+  // Sommes des champs renseignés sur tous les tickets
+  const sommeContacts = cb.reduce((s, c) => s + (c.nombre_contacts_attendus || 0), 0);
+  const sommeAppels = cb.reduce((s, c) => s + (c.nb_appels || 0), 0);
+  const sommeRdvObtenus = cb.reduce((s, c) => s + (c.nb_rdv_obtenus || 0), 0);
+  const sommeRdvAObtenir = cb.reduce((s, c) => s + (c.nombre_rdv_attendus || 0), 0);
+  const nbRdvQualif = cb.filter(c => getColonneCible(c) >= 3 || c.nb_besoins_id > 0).length;
+  const sommeBesoinsId = cb.reduce((s, c) => s + (c.nb_besoins_id || 0), 0);
+  const sommeBesoinsRet = cb.reduce((s, c) => s + (c.nb_besoins_ret || 0), 0);
+  const nbAvancement = cb.filter(c => getColonneCible(c) === 5).length;
+  const projetsMsiCount = (state.projetsMsi || []).filter(p => cb.some(c => c.id === p.cible_id)).length;
+
+  // Étapes de l'entonnoir (les vraies sommes du métier)
   const etapesNow = [
-    { label: 'Leads', val: parColNow[1] },
-    { label: 'Phoning', val: parColNow[2] },
-    { label: 'RDV Qualif.', val: parColNow[3] },
-    { label: 'Rédaction', val: parColNow[4] },
-    { label: 'Avancement', val: parColNow[5] },
-    { label: 'Finance', val: parColNow[6] }
+    { label: 'Contacts visés', val: sommeContacts },
+    { label: 'Appels à faire', val: sommeAppels },
+    { label: 'RDV à obtenir', val: sommeRdvAObtenir },
+    { label: 'RDV obtenus', val: sommeRdvObtenus },
+    { label: 'Besoins identifiés', val: sommeBesoinsId },
+    { label: 'Besoins retenus', val: sommeBesoinsRet },
+    { label: 'Propales (avancement)', val: nbAvancement },
+    { label: 'Projets MSI signés', val: projetsMsiCount }
   ];
 
-  // (b) HISTORIQUE CUMULÉ : nb de tâches qui sont PASSÉES par chaque étape (depuis historique_etapes)
-  const hist = (state.historiqueEtapes || []).filter(h => cbIds.has(h.cible_id));
-  const passeParEtape = {};
-  for (let i = 1; i <= 6; i++) {
-    const idsUniques = new Set(hist.filter(h => h.etape === i).map(h => h.cible_id));
-    passeParEtape[i] = idsUniques.size;
-  }
-  const etapesHist = [
-    { label: 'Leads', val: passeParEtape[1] },
-    { label: 'Phoning', val: passeParEtape[2] },
-    { label: 'RDV Qualif.', val: passeParEtape[3] },
-    { label: 'Rédaction', val: passeParEtape[4] },
-    { label: 'Avancement', val: passeParEtape[5] },
-    { label: 'Signés', val: nbSignes }
-  ];
-
-  renderEntonnoirChart(etapesNow);       // photo instant T
-  renderTauxConvChart(etapesHist);       // taux basés sur l'historique
-  renderEntonnoirTable(etapesHist);      // tableau basé sur l'historique
+  renderEntonnoirChart(etapesNow);
+  renderTauxConvChart(etapesNow);
+  renderEntonnoirTable(etapesNow);
 
   // === INDICATEURS DIRECTEUR ===
   const totalAffaires = cb.length;
@@ -2623,17 +2692,33 @@ function renderAnalyse() {
   renderIndicateursDirecteur({ panierMoyen, delaiMoyen, tauxPerte, valeurPipeline, nbSignes, nbPerdus });
 
   // === 2. PERFORMANCE PAR SOURCE ===
+  // Métrique : nb propales (col 5) qui se sont converties en projets MSI signés
   const sourcesStats = {};
   cb.forEach(c => {
     const srcId = c.source_id || 'none';
-    if (!sourcesStats[srcId]) sourcesStats[srcId] = { taches: 0, signes: 0, ca: 0 };
+    if (!sourcesStats[srcId]) sourcesStats[srcId] = { taches: 0, propales: 0, projets_msi: 0, ca: 0 };
     sourcesStats[srcId].taches++;
-    if (c.statut_avancement === 'Signé') { sourcesStats[srcId].signes++; sourcesStats[srcId].ca += (c.montant_estime || 0); }
+    // Propales = tâches en col 5 (avancement)
+    if (getColonneCible(c) === 5) sourcesStats[srcId].propales++;
+    // Projets MSI signés issus de cette tâche
+    if (c.statut_avancement === 'Signé') {
+      const projsThisCible = (state.projetsMsi || []).filter(p => p.cible_id === c.id);
+      sourcesStats[srcId].projets_msi += projsThisCible.length;
+      sourcesStats[srcId].ca += projsThisCible.reduce((s, p) => s + (p.montant || 0), 0) || (c.montant_estime || 0);
+    }
   });
   const sourcesArr = Object.entries(sourcesStats).map(([srcId, st]) => {
     const src = state.sources.find(s => s.id === parseInt(srcId));
-    return { nom: src ? src.nom : 'Sans source', taches: st.taches, signes: st.signes, ca: st.ca, taux: st.taches > 0 ? Math.round((st.signes / st.taches) * 100) : 0 };
-  }).sort((a, b) => b.signes - a.signes || b.ca - a.ca);
+    const denominateur = st.propales || st.taches;
+    return {
+      nom: src ? src.nom : 'Sans source',
+      taches: st.taches,
+      propales: st.propales,
+      projets_msi: st.projets_msi,
+      ca: st.ca,
+      taux: denominateur > 0 ? Math.round((st.projets_msi / denominateur) * 100) : 0
+    };
+  }).sort((a, b) => b.projets_msi - a.projets_msi || b.ca - a.ca);
 
   renderSourcesChart(sourcesArr);
   renderSourcesTable(sourcesArr);
@@ -2665,9 +2750,9 @@ function renderEntonnoirChart(etapes) {
     data: {
       labels: etapes.map(e => e.label),
       datasets: [{
-        label: 'Nb tâches',
+        label: 'Total',
         data: etapes.map(e => e.val),
-        backgroundColor: ['#7F77DD', '#5DCAA5', '#85B7EB', '#FAC775', '#1D9E75', '#0C7A52'],
+        backgroundColor: ['#7F77DD', '#5DCAA5', '#85B7EB', '#5DCAA5', '#FAC775', '#FAC775', '#1D9E75', '#0C7A52'],
         borderRadius: 4
       }]
     },
@@ -2718,8 +2803,8 @@ function renderSourcesChart(sourcesArr) {
     data: {
       labels: top.map(s => s.nom),
       datasets: [
-        { label: 'Tâches', data: top.map(s => s.taches), backgroundColor: '#85B7EB', borderRadius: 4 },
-        { label: 'Signés', data: top.map(s => s.signes), backgroundColor: '#1D9E75', borderRadius: 4 }
+        { label: 'Propales (avancement)', data: top.map(s => s.propales), backgroundColor: '#FAC775', borderRadius: 4 },
+        { label: 'Projets MSI signés', data: top.map(s => s.projets_msi), backgroundColor: '#1D9E75', borderRadius: 4 }
       ]
     },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
@@ -2730,16 +2815,15 @@ function renderSourcesTable(sourcesArr) {
   const tbody = document.querySelector('#sources-perf-table tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
-  if (sourcesArr.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty">Aucune donnée</td></tr>'; return; }
-  const maxCa = Math.max(...sourcesArr.map(s => s.ca), 1);
+  if (sourcesArr.length === 0) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Aucune donnée</td></tr>'; return; }
   sourcesArr.forEach(s => {
     let perf = '', cls = '';
-    if (s.taux >= 30 && s.signes > 0) { perf = '⭐ À favoriser'; cls = 'perf-bon'; }
-    else if (s.signes > 0) { perf = '🟠 Moyenne'; cls = 'perf-moyen'; }
+    if (s.taux >= 50 && s.projets_msi > 0) { perf = '⭐ À favoriser'; cls = 'perf-bon'; }
+    else if (s.projets_msi > 0) { perf = '🟠 Moyenne'; cls = 'perf-moyen'; }
     else if (s.taches >= 3) { perf = '🔴 Peu efficace'; cls = 'perf-faible'; }
     else { perf = '— Trop peu de données'; }
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><strong>${s.nom}</strong></td><td>${s.taches}</td><td>${s.signes}</td><td class="${cls}">${s.taux}%</td><td>${formatEuro(s.ca)} €</td><td>${perf}</td>`;
+    tr.innerHTML = `<td><strong>${s.nom}</strong></td><td>${s.taches}</td><td>${s.propales}</td><td>${s.projets_msi}</td><td class="${cls}">${s.taux}%</td><td>${formatEuro(s.ca)} €</td><td>${perf}</td>`;
     tbody.appendChild(tr);
   });
 }

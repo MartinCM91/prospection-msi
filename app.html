@@ -365,7 +365,7 @@
           <h4 class="form-section-title">Avancement (colonne 5)</h4>
           <div class="form-row form-row-2">
             <div class="form-field"><label>Statut</label><select id="cible-statut-avancement"><option value="Négociation">Négociation</option><option value="Signé">Signé</option><option value="Perdu">Perdu</option></select></div>
-            <div class="form-field"><label>Montant global estimé (€)</label><input type="number" id="cible-montant" min="0" step="0.01" value="0"></div>
+            <div class="form-field"><label>Montant global estimé HT (€)</label><input type="text" inputmode="decimal" id="cible-montant" value="0" placeholder="Ex : 22500,50"></div>
           </div>
           <div class="form-row form-row-2">
             <div class="form-field"><label>Date de signature</label><input type="date" id="cible-date-signature"></div>
@@ -386,8 +386,9 @@
           <h4 class="form-section-title">Finance (colonne 6)</h4>
           <div class="form-row form-row-2">
             <div class="form-field"><label>Type</label><select id="cible-type-finance"><option value="Facturation">Facturation</option><option value="Relance de paiement">Relance de paiement</option></select></div>
-            <div class="form-field"><label>Montant global du contrat (€)</label><input type="number" id="cible-montant-global-fin" min="0" step="0.01" value="0"></div>
+            <div class="form-field"><label>Montant global du contrat HT (€)</label><input type="text" inputmode="decimal" id="cible-montant-global-fin" value="0" placeholder="Ex : 19250.50"></div>
           </div>
+          <div class="finance-ht-ttc hint" style="margin:4px 0 8px;font-size:12px;">💡 Tous les montants sont en <strong>HT</strong>. Le TTC est calculé automatiquement (×1,20).</div>
           <div class="finance-summary" id="finance-summary"></div>
           <h4 class="form-section-title" style="margin-top:12px;">Factures</h4>
           <p class="hint" style="margin:0 0 8px;">Le client peut payer en plusieurs fois (mensuel, par période, etc.). Chaque ligne = une facture émise. Renseignez le montant reçu pour suivre les paiements partiels.</p>

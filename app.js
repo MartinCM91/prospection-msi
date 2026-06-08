@@ -145,7 +145,14 @@ async function loadData() {
   state.historiqueEtapes = results[17]?.data || [];
 }
 
-function formatEuro(n) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n || 0); }
+function formatEuro(n) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n || 0); }
+
+// Parse un montant saisi en français (virgule ou point accepté)
+function parseDecimal(val) {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  return parseFloat(String(val).replace(/\s/g, '').replace(',', '.')) || 0;
+}
 
 function fillYearSelect(el, current, range = 5) {
   el.innerHTML = '';
@@ -771,19 +778,21 @@ function renderPaiementsPhasesList() {
   // Mise à jour du résumé Finance
   const summary = document.getElementById('finance-summary');
   const montantGlobalEl = document.getElementById('cible-montant-global-fin');
-  const montantGlobal = montantGlobalEl ? parseFloat(montantGlobalEl.value) || 0 : 0;
+  const montantGlobal = montantGlobalEl ? parseDecimal(montantGlobalEl.value) : 0;
   const totalFacture = state.tempPaiements.reduce((s, p) => s + (p.montant || 0), 0);
   const totalRecu = state.tempPaiements.reduce((s, p) => s + (p.montant_recu || 0), 0);
-  const restantAPayer = totalFacture - totalRecu;
+  const restantHT = totalFacture - (totalRecu / 1.2);
+  const restantTTC = restantHT * 1.2;
   const nonFacture = Math.max(0, montantGlobal - totalFacture);
   if (summary) {
     summary.innerHTML = `
       <div class="fin-summary-grid">
-        <div class="fin-summary-item"><div class="fin-summary-label">Montant contrat</div><div class="fin-summary-value">${formatEuro(montantGlobal)} €</div></div>
-        <div class="fin-summary-item"><div class="fin-summary-label">Facturé</div><div class="fin-summary-value">${formatEuro(totalFacture)} €</div></div>
-        <div class="fin-summary-item fin-summary-recu"><div class="fin-summary-label">Reçu</div><div class="fin-summary-value">${formatEuro(totalRecu)} €</div></div>
-        <div class="fin-summary-item fin-summary-restant"><div class="fin-summary-label">Reste à payer</div><div class="fin-summary-value">${formatEuro(restantAPayer)} €</div></div>
-        ${nonFacture > 0 ? `<div class="fin-summary-item fin-summary-warn"><div class="fin-summary-label">⚠️ Non encore facturé</div><div class="fin-summary-value">${formatEuro(nonFacture)} €</div></div>` : ''}
+        <div class="fin-summary-item"><div class="fin-summary-label">Contrat HT</div><div class="fin-summary-value">${formatEuro(montantGlobal)} €</div><div class="fin-summary-ttc">${formatEuro(montantGlobal * 1.2)} € TTC</div></div>
+        <div class="fin-summary-item"><div class="fin-summary-label">Facturé HT</div><div class="fin-summary-value">${formatEuro(totalFacture)} €</div><div class="fin-summary-ttc">${formatEuro(totalFacture * 1.2)} € TTC</div></div>
+        <div class="fin-summary-item fin-summary-recu"><div class="fin-summary-label">Reçu TTC</div><div class="fin-summary-value">${formatEuro(totalRecu)} €</div></div>
+        <div class="fin-summary-item fin-summary-restant"><div class="fin-summary-label">Reste à payer</div><div class="fin-summary-value">${formatEuro(restantTTC)} € TTC</div><div class="fin-summary-ttc">${formatEuro(restantHT)} € HT</div></div>
+        ${nonFacture > 0.01 ? `<div class="fin-summary-item fin-summary-warn"><div class="fin-summary-label">⚠️ Non facturé</div><div class="fin-summary-value">${formatEuro(nonFacture)} € HT</div></div>` : ''}
+        <div class="fin-summary-item"><div class="fin-summary-label">Nb factures</div><div class="fin-summary-value">${state.tempPaiements.length}</div></div>
       </div>
     `;
   }
@@ -817,13 +826,14 @@ function renderPaiementsPhasesList() {
           <div class="form-field"><label>Échéance paiement</label><input type="date" class="pp-echeance" data-index="${i}" value="${p.date_echeance_paiement || ''}"></div>
         </div>
         <div class="form-row form-row-2">
-          <div class="form-field"><label>Montant facturé (€)</label><input type="number" class="pp-montant" data-index="${i}" min="0" step="0.01" value="${montantFact}"></div>
-          <div class="form-field"><label>Montant reçu (€)</label><input type="number" class="pp-recu" data-index="${i}" min="0" step="0.01" value="${montantRecu}" placeholder="0 si non payée"></div>
+          <div class="form-field"><label>Montant facturé HT (€)</label><input type="text" inputmode="decimal" class="pp-montant" data-index="${i}" value="${montantFact || ''}" placeholder="Ex : 5000,50"></div>
+          <div class="form-field"><label>Montant reçu TTC (€)</label><input type="text" inputmode="decimal" class="pp-recu" data-index="${i}" value="${montantRecu || ''}" placeholder="0 si non payée"></div>
         </div>
         <div class="form-row form-row-2">
           <div class="form-field"><label>Date paiement effectif</label><input type="date" class="pp-date-paye" data-index="${i}" value="${p.date_paiement || ''}"></div>
-          <div class="form-field"><label>Reste à payer</label><input type="text" value="${formatEuro(reste)} €" disabled class="pp-reste"></div>
+          <div class="form-field"><label>Reste à payer TTC</label><input type="text" value="${formatEuro(reste * 1.2)} € TTC (${formatEuro(reste)} € HT)" disabled class="pp-reste"></div>
         </div>
+        <div class="facture-ttc-info">HT : ${formatEuro(montantFact)} € → TTC : ${formatEuro(montantFact * 1.2)} €</div>
         <div class="form-row">
           <div class="form-field"><label>Notes</label><input type="text" class="pp-notes" data-index="${i}" value="${p.notes || ''}" placeholder="Ex : Paiement par virement le 15/02"></div>
         </div>
@@ -834,18 +844,18 @@ function renderPaiementsPhasesList() {
   // Listeners
   container.querySelectorAll('.pp-montant').forEach(el => {
     el.addEventListener('input', e => {
-      state.tempPaiements[parseInt(e.target.dataset.index)].montant = parseFloat(e.target.value) || 0;
+      state.tempPaiements[parseInt(e.target.dataset.index)].montant = parseDecimal(e.target.value);
       renderPaiementsPhasesList();
     });
   });
   container.querySelectorAll('.pp-recu').forEach(el => {
     el.addEventListener('input', e => {
       const idx = parseInt(e.target.dataset.index);
-      const val = parseFloat(e.target.value) || 0;
+      const val = parseDecimal(e.target.value);
       state.tempPaiements[idx].montant_recu = val;
-      // Si totalement payé, marquer est_paye + date paiement auto
       const p = state.tempPaiements[idx];
-      if (Math.abs(val - (p.montant || 0)) < 0.01 && val > 0) {
+      const montantTTC = (p.montant || 0) * 1.2;
+      if (Math.abs(val - montantTTC) < 0.01 && val > 0) {
         p.est_paye = true;
         if (!p.date_paiement) p.date_paiement = new Date().toISOString().split('T')[0];
       } else {
@@ -1027,8 +1037,8 @@ async function saveCible(e) {
     etape: colNum,
     periode_msi: document.getElementById('cible-periode').value || null,
     montant_estime: colNum === 6
-      ? (parseFloat(document.getElementById('cible-montant-global-fin')?.value) || parseFloat(document.getElementById('cible-montant').value) || 0)
-      : (parseFloat(document.getElementById('cible-montant').value) || 0),
+      ? (parseDecimal(document.getElementById('cible-montant-global-fin')?.value) || parseDecimal(document.getElementById('cible-montant').value) || 0)
+      : (parseDecimal(document.getElementById('cible-montant').value) || 0),
     niveau_confiance: parseFloat(document.getElementById('cible-confiance').value) || 0.5,
     notes: document.getElementById('cible-notes').value || null,
     statut_avancement: colNum === 5 ? document.getElementById('cible-statut-avancement').value : null,

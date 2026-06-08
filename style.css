@@ -470,3 +470,7 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .facture-paye { background: #E1F5EE; color: #085041; }
 .facture-retard { background: #FCEBEB; color: #A32D2D; }
 .pp-reste { background: #F5F5F2 !important; font-weight: 600; color: #A32D2D !important; }
+
+/* HT/TTC */
+.fin-summary-ttc { font-size: 11px; color: #888780; margin-top: 2px; }
+.facture-ttc-info { font-size: 11px; color: #1F3864; background: #F0F4F9; padding: 4px 10px; border-radius: 4px; margin-top: 4px; }

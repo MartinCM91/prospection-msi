@@ -1849,7 +1849,12 @@ function renderKanbanCard(c, col, body) {
 }
 
 function renderDashboard() {
+  const filtre = getDashFiltre();
+  const periodeFiltre = filtre.period || '';
+  const anneeFiltre = filtre.year || null;
+  if (anneeFiltre) state.annee = anneeFiltre;
   const dashAnnee = anneeFiltre || state.annee;
+
   const objAnnuelGlobal = state.objectifsAnnuels.find(o => o.annee === dashAnnee && o.periode_msi === 'ANNUEL');
   const caObjectif = objAnnuelGlobal?.ca_cible || 0;
   const msiObjectif = objAnnuelGlobal?.msi_cible || 0;
@@ -1862,9 +1867,6 @@ function renderDashboard() {
   const ciblesSigneesAvecDate = ciblesSignees.filter(c => c.date_signature);
   const ciblesSigneesSansDate = ciblesSignees.filter(c => !c.date_signature);
 
-  const filtre = getDashFiltre();
-  const periodeFiltre = filtre.period || '';
-  const anneeFiltre = filtre.year || null;
   // Projets MSI issus des tâches signées du produit actif
   const projetsMsiActifs = (state.projetsMsi || []).filter(p => {
     const cible = cibles.find(c => c.id === p.cible_id);

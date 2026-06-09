@@ -178,17 +178,57 @@ function getPeriodesList() {
   return Array.from(periodesSet).sort();
 }
 
+function fillDashFiltre() {
+  const sel = document.getElementById('dash-filtre');
+  if (!sel) return;
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="all">Tout afficher</option>';
+  // Années
+  const cy = new Date().getFullYear();
+  const annees = new Set();
+  for (let y = cy - 1; y <= cy + 3; y++) annees.add(y);
+  (state.objectifsAnnuels || []).forEach(o => { if (o.annee) annees.add(o.annee); });
+  const grpAnnee = document.createElement('optgroup');
+  grpAnnee.label = '— Par année —';
+  Array.from(annees).sort().forEach(y => {
+    const o = document.createElement('option');
+    o.value = 'year:' + y; o.textContent = 'Année ' + y;
+    grpAnnee.appendChild(o);
+  });
+  sel.appendChild(grpAnnee);
+  // Périodes
+  const periodes = getPeriodesList();
+  const grpPeriode = document.createElement('optgroup');
+  grpPeriode.label = '— Par période MSI —';
+  periodes.forEach(p => {
+    const o = document.createElement('option');
+    o.value = 'period:' + p; o.textContent = 'Période ' + p;
+    grpPeriode.appendChild(o);
+  });
+  sel.appendChild(grpPeriode);
+  if (currentVal) sel.value = currentVal;
+  else sel.value = 'period:2627A'; // défaut
+}
+
+function getDashFiltre() {
+  const val = document.getElementById('dash-filtre')?.value || 'all';
+  if (val === 'all') return { type: 'all', year: null, period: null };
+  if (val.startsWith('year:')) return { type: 'year', year: parseInt(val.split(':')[1]), period: null };
+  if (val.startsWith('period:')) return { type: 'period', year: null, period: val.split(':')[1] };
+  return { type: 'all', year: null, period: null };
+}
+
 function fillPeriodeSelects() {
   const periodes = getPeriodesList();
-  ['plan-periode', 'kpi-periode-filtre', 'cible-periode'].forEach(selectId => {
+  ['plan-periode', 'cible-periode'].forEach(selectId => {
     const sel = document.getElementById(selectId);
     if (!sel) return;
     const currentVal = sel.value;
     const hasEmptyOption = sel.querySelector('option[value=""]');
     sel.innerHTML = '';
-    if (selectId === 'plan-periode' || selectId === 'kpi-periode-filtre') {
+    if (selectId === 'plan-periode') {
       const o0 = document.createElement('option');
-      o0.value = ''; o0.textContent = selectId === 'kpi-periode-filtre' ? 'Toutes périodes' : 'Toutes';
+      o0.value = ''; o0.textContent = 'Toutes';
       sel.appendChild(o0);
     }
     if (selectId === 'cible-periode') {
@@ -251,8 +291,8 @@ function updateProduitLabels() {
 }
 
 function setupYearSelectors() {
-  fillYearSelect(document.getElementById('dash-year'), state.annee);
-  document.getElementById('dash-year').addEventListener('change', e => { state.annee = parseInt(e.target.value); renderDashboard(); });
+  fillDashFiltre();
+  document.getElementById('dash-filtre').addEventListener('change', () => renderDashboard());
   fillYearSelect(document.getElementById('year-select'), state.cal_annee);
   document.getElementById('year-select').addEventListener('change', e => { state.cal_annee = parseInt(e.target.value); renderCalendar(); renderJalons(); });
   fillYearSelect(document.getElementById('obj-year'), state.obj_annee);
@@ -391,14 +431,42 @@ function setupResets() {
 
 function setupExport() {
   document.getElementById('btn-export-excel').addEventListener('click', exportToExcel);
-  document.getElementById('kpi-periode-filtre')?.addEventListener('change', () => renderDashboard());
 }
 
 function setupFullscreen() {
   document.getElementById('btn-fullscreen-cal').addEventListener('click', () => {
     const c = document.getElementById('calendar-container');
     c.classList.toggle('fullscreen');
-    document.getElementById('btn-fullscreen-cal').textContent = c.classList.contains('fullscreen') ? '⛶ Quitter' : '⛶ Plein écran';
+    const isFs = c.classList.contains('fullscreen');
+    document.getElementById('btn-fullscreen-cal').textContent = isFs ? '⛶ Quitter' : '⛶ Plein écran';
+    // Bouton flottant dans le container plein écran
+    let floatBtn = document.getElementById('btn-exit-fullscreen');
+    if (isFs && !floatBtn) {
+      floatBtn = document.createElement('button');
+      floatBtn.id = 'btn-exit-fullscreen';
+      floatBtn.className = 'btn-exit-fullscreen';
+      floatBtn.textContent = '✕ Quitter le plein écran';
+      floatBtn.addEventListener('click', () => {
+        c.classList.remove('fullscreen');
+        document.getElementById('btn-fullscreen-cal').textContent = '⛶ Plein écran';
+        floatBtn.remove();
+      });
+      c.prepend(floatBtn);
+    } else if (!isFs && floatBtn) {
+      floatBtn.remove();
+    }
+  });
+  // Touche Échap pour quitter le plein écran calendrier
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const c = document.getElementById('calendar-container');
+      if (c && c.classList.contains('fullscreen')) {
+        c.classList.remove('fullscreen');
+        document.getElementById('btn-fullscreen-cal').textContent = '⛶ Plein écran';
+        const fb = document.getElementById('btn-exit-fullscreen');
+        if (fb) fb.remove();
+      }
+    }
   });
 }
 
@@ -1483,10 +1551,11 @@ async function savePeriode(e) {
   state._periodeAnneeCible = null;
   await loadData();
   // Rafraîchir les sélecteurs d'année (la nouvelle année peut être hors plage par défaut)
-  ['dash-year', 'year-select', 'obj-year', 'hebdo-year'].forEach(selId => {
+  ['year-select', 'obj-year', 'hebdo-year'].forEach(selId => {
     const sel = document.getElementById(selId);
     if (sel) { const cur = parseInt(sel.value); fillYearSelect(sel, cur); }
   });
+  fillDashFiltre();
   renderAll();
 }
 
@@ -1534,6 +1603,7 @@ function renderParametres() {
 // ============================================================
 function renderAll() {
   fillPeriodeSelects();
+  fillDashFiltre();
   renderDashboard();
   renderKanban();
   renderHebdo();
@@ -1779,7 +1849,8 @@ function renderKanbanCard(c, col, body) {
 }
 
 function renderDashboard() {
-  const objAnnuelGlobal = state.objectifsAnnuels.find(o => o.annee === state.annee && o.periode_msi === 'ANNUEL');
+  const dashAnnee = anneeFiltre || state.annee;
+  const objAnnuelGlobal = state.objectifsAnnuels.find(o => o.annee === dashAnnee && o.periode_msi === 'ANNUEL');
   const caObjectif = objAnnuelGlobal?.ca_cible || 0;
   const msiObjectif = objAnnuelGlobal?.msi_cible || 0;
   const cibles = getCiblesProduitActif();
@@ -1791,8 +1862,9 @@ function renderDashboard() {
   const ciblesSigneesAvecDate = ciblesSignees.filter(c => c.date_signature);
   const ciblesSigneesSansDate = ciblesSignees.filter(c => !c.date_signature);
 
-  // Filtre période MSI pour le KPI contrats signés — basé sur projets MSI
-  const periodeFiltre = document.getElementById('kpi-periode-filtre')?.value || '';
+  const filtre = getDashFiltre();
+  const periodeFiltre = filtre.period || '';
+  const anneeFiltre = filtre.year || null;
   // Projets MSI issus des tâches signées du produit actif
   const projetsMsiActifs = (state.projetsMsi || []).filter(p => {
     const cible = cibles.find(c => c.id === p.cible_id);
@@ -2582,6 +2654,19 @@ function renderObjectifsTable() {
   });
   orderedSources.forEach(src => {
     const tr = document.createElement('tr');
+    // Calculer le réalisé depuis les objectifs événements liés à cette source
+    const evtsSource = state.evenements.filter(e => e.source_id === src.id);
+    const evtIds = evtsSource.map(e => e.id);
+    let childEvtIds = [];
+    if (src.isParent) {
+      const children = state.sources.filter(s => s.parent_id === src.id);
+      children.forEach(c => {
+        state.evenements.filter(e => e.source_id === c.id).forEach(e => childEvtIds.push(e.id));
+      });
+    }
+    const allEvtIds = [...evtIds, ...childEvtIds];
+    const realise = state.evtObjectifs.filter(o => allEvtIds.includes(o.evenement_id) && o.type_objectif === 'Contacts').reduce((s, o) => s + (o.nombre_realise || 0), 0);
+
     if (src.isParent) {
       tr.className = 'objectif-parent-row' + (state.expandedParents.has(src.id) ? ' expanded' : '');
       tr.dataset.parentToggle = src.id;
@@ -2589,12 +2674,18 @@ function renderObjectifsTable() {
       const allIds = [src.id, ...children.map(c => c.id)];
       const totalP1 = state.objectifs.filter(o => allIds.includes(o.source_id) && o.periode === 'P1').reduce((s,o) => s + (o.cible_contacts||0), 0);
       const totalP2 = state.objectifs.filter(o => allIds.includes(o.source_id) && o.periode === 'P2').reduce((s,o) => s + (o.cible_contacts||0), 0);
-      tr.innerHTML = `<td><span class="chevron">▶</span>${src.nom}</td><td>${totalP1}</td><td>${totalP2}</td><td><strong>${totalP1+totalP2}</strong></td>`;
+      const total = totalP1 + totalP2;
+      const pct = total > 0 ? Math.round((realise / total) * 100) : 0;
+      const pctCls = pct >= 80 ? 'perf-bon' : (pct >= 40 ? 'perf-moyen' : 'perf-faible');
+      tr.innerHTML = `<td><span class="chevron">▶</span>${src.nom}</td><td>${totalP1}</td><td>${totalP2}</td><td><strong>${total}</strong></td><td>${realise}</td><td class="${total > 0 ? pctCls : ''}">${total > 0 ? pct + '%' : '—'}</td>`;
     } else {
       if (src.isChild) tr.className = 'objectif-child-row';
       const p1 = state.objectifs.find(o => o.source_id === src.id && o.periode === 'P1');
       const p2 = state.objectifs.find(o => o.source_id === src.id && o.periode === 'P2');
-      tr.innerHTML = `<td>${src.nom}</td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P1" value="${p1?.cible_contacts||0}" min="0"></td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P2" value="${p2?.cible_contacts||0}" min="0"></td><td><strong>${(p1?.cible_contacts||0)+(p2?.cible_contacts||0)}</strong></td>`;
+      const total = (p1?.cible_contacts||0) + (p2?.cible_contacts||0);
+      const pct = total > 0 ? Math.round((realise / total) * 100) : 0;
+      const pctCls = pct >= 80 ? 'perf-bon' : (pct >= 40 ? 'perf-moyen' : 'perf-faible');
+      tr.innerHTML = `<td>${src.nom}</td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P1" value="${p1?.cible_contacts||0}" min="0"></td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P2" value="${p2?.cible_contacts||0}" min="0"></td><td><strong>${total}</strong></td><td>${realise}</td><td class="${total > 0 ? pctCls : ''}">${total > 0 ? pct + '%' : '—'}</td>`;
     }
     tbody.appendChild(tr);
   });

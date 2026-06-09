@@ -474,3 +474,7 @@ main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 /* HT/TTC */
 .fin-summary-ttc { font-size: 11px; color: #888780; margin-top: 2px; }
 .facture-ttc-info { font-size: 11px; color: #1F3864; background: #F0F4F9; padding: 4px 10px; border-radius: 4px; margin-top: 4px; }
+
+/* Bouton sortir plein écran */
+.btn-exit-fullscreen { position: fixed; top: 16px; right: 16px; z-index: 1001; background: #1F3864; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.25); transition: all 0.15s; }
+.btn-exit-fullscreen:hover { background: #A32D2D; transform: scale(1.05); }

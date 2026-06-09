@@ -179,43 +179,28 @@ function getPeriodesList() {
 }
 
 function fillDashFiltre() {
-  const sel = document.getElementById('dash-filtre');
-  if (!sel) return;
-  const currentVal = sel.value;
-  sel.innerHTML = '<option value="all">Tout afficher</option>';
-  // Années
-  const cy = new Date().getFullYear();
-  const annees = new Set();
-  for (let y = cy - 1; y <= cy + 3; y++) annees.add(y);
-  (state.objectifsAnnuels || []).forEach(o => { if (o.annee) annees.add(o.annee); });
-  const grpAnnee = document.createElement('optgroup');
-  grpAnnee.label = '— Par année —';
-  Array.from(annees).sort().forEach(y => {
-    const o = document.createElement('option');
-    o.value = 'year:' + y; o.textContent = 'Année ' + y;
-    grpAnnee.appendChild(o);
-  });
-  sel.appendChild(grpAnnee);
-  // Périodes
-  const periodes = getPeriodesList();
-  const grpPeriode = document.createElement('optgroup');
-  grpPeriode.label = '— Par période MSI —';
-  periodes.forEach(p => {
-    const o = document.createElement('option');
-    o.value = 'period:' + p; o.textContent = 'Période ' + p;
-    grpPeriode.appendChild(o);
-  });
-  sel.appendChild(grpPeriode);
-  if (currentVal) sel.value = currentVal;
-  else sel.value = 'period:2627A'; // défaut
+  // Filtre année
+  const yearSel = document.getElementById('dash-year');
+  if (yearSel) fillYearSelect(yearSel, state.annee);
+  // Filtre période MSI
+  const periodeSel = document.getElementById('dash-periode');
+  if (periodeSel) {
+    const currentVal = periodeSel.value;
+    const periodes = getPeriodesList();
+    periodeSel.innerHTML = '<option value="">Toutes périodes</option>';
+    periodes.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p; o.textContent = p;
+      periodeSel.appendChild(o);
+    });
+    if (currentVal) periodeSel.value = currentVal;
+  }
 }
 
 function getDashFiltre() {
-  const val = document.getElementById('dash-filtre')?.value || 'all';
-  if (val === 'all') return { type: 'all', year: null, period: null };
-  if (val.startsWith('year:')) return { type: 'year', year: parseInt(val.split(':')[1]), period: null };
-  if (val.startsWith('period:')) return { type: 'period', year: null, period: val.split(':')[1] };
-  return { type: 'all', year: null, period: null };
+  const year = parseInt(document.getElementById('dash-year')?.value) || state.annee;
+  const period = document.getElementById('dash-periode')?.value || '';
+  return { year, period };
 }
 
 function fillPeriodeSelects() {
@@ -292,7 +277,8 @@ function updateProduitLabels() {
 
 function setupYearSelectors() {
   fillDashFiltre();
-  document.getElementById('dash-filtre').addEventListener('change', () => renderDashboard());
+  document.getElementById('dash-year').addEventListener('change', e => { state.annee = parseInt(e.target.value); renderDashboard(); renderDashboardCharts(); });
+  document.getElementById('dash-periode').addEventListener('change', () => { renderDashboard(); });
   fillYearSelect(document.getElementById('year-select'), state.cal_annee);
   document.getElementById('year-select').addEventListener('change', e => { state.cal_annee = parseInt(e.target.value); renderCalendar(); renderJalons(); });
   fillYearSelect(document.getElementById('obj-year'), state.obj_annee);
@@ -1551,7 +1537,7 @@ async function savePeriode(e) {
   state._periodeAnneeCible = null;
   await loadData();
   // Rafraîchir les sélecteurs d'année (la nouvelle année peut être hors plage par défaut)
-  ['year-select', 'obj-year', 'hebdo-year'].forEach(selId => {
+  ['dash-year', 'year-select', 'obj-year', 'hebdo-year'].forEach(selId => {
     const sel = document.getElementById(selId);
     if (sel) { const cur = parseInt(sel.value); fillYearSelect(sel, cur); }
   });
@@ -1850,10 +1836,9 @@ function renderKanbanCard(c, col, body) {
 
 function renderDashboard() {
   const filtre = getDashFiltre();
-  const periodeFiltre = filtre.period || '';
-  const anneeFiltre = filtre.year || null;
-  if (anneeFiltre) state.annee = anneeFiltre;
-  const dashAnnee = anneeFiltre || state.annee;
+  const periodeFiltre = filtre.period;
+  state.annee = filtre.year;
+  const dashAnnee = state.annee;
 
   const objAnnuelGlobal = state.objectifsAnnuels.find(o => o.annee === dashAnnee && o.periode_msi === 'ANNUEL');
   const caObjectif = objAnnuelGlobal?.ca_cible || 0;
@@ -2938,26 +2923,35 @@ function renderEvolTempsChart(cibles) {
   // Grouper les signés par mois de date_signature
   const parMois = {};
   cibles.filter(c => c.statut_avancement === 'Signé' && c.date_signature).forEach(c => {
-    const mois = c.date_signature.substring(0, 7); // YYYY-MM
+    const mois = c.date_signature.substring(0, 7);
     if (!parMois[mois]) parMois[mois] = { nb: 0, ca: 0 };
     parMois[mois].nb++;
     parMois[mois].ca += (c.montant_estime || 0);
   });
-  const moisLabels = Object.keys(parMois).sort();
-  if (moisLabels.length === 0) {
-    ctx.parentElement.innerHTML = '<p class="hint" style="text-align:center;padding:40px;">Aucune signature datée pour le moment. Renseignez les dates de signature pour voir l\'évolution.</p>';
-    return;
-  }
+  // Aussi compter les créations de tâches par mois (pour voir l'activité même sans signature)
+  const creationsParMois = {};
+  cibles.forEach(c => {
+    const dateStr = c.date_creation || c.created_at;
+    if (!dateStr) return;
+    const mois = dateStr.substring(0, 7);
+    if (!creationsParMois[mois]) creationsParMois[mois] = 0;
+    creationsParMois[mois]++;
+  });
+  const allMois = new Set([...Object.keys(parMois), ...Object.keys(creationsParMois)]);
+  const moisLabels = Array.from(allMois).sort();
+  if (moisLabels.length === 0) return;
+  const formatMois = m => { const [y, mo] = m.split('-'); return ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'][parseInt(mo)-1] + ' ' + y.substring(2); };
   state.charts.evolTemps = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: moisLabels.map(m => { const [y, mo] = m.split('-'); return ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'][parseInt(mo)-1] + ' ' + y.substring(2); }),
+      labels: moisLabels.map(formatMois),
       datasets: [
-        { label: 'Signés (nb)', data: moisLabels.map(m => parMois[m].nb), borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.1)', yAxisID: 'y', tension: 0.3, fill: true },
-        { label: 'CA (€)', data: moisLabels.map(m => parMois[m].ca), borderColor: '#1F3864', backgroundColor: 'rgba(31,56,100,0.05)', yAxisID: 'y1', tension: 0.3 }
+        { label: 'Tâches créées', data: moisLabels.map(m => creationsParMois[m] || 0), borderColor: '#85B7EB', backgroundColor: 'rgba(133,183,235,0.1)', tension: 0.3, fill: true },
+        { label: 'Signés', data: moisLabels.map(m => parMois[m]?.nb || 0), borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.1)', tension: 0.3, fill: true },
+        { label: 'CA signé (€)', data: moisLabels.map(m => parMois[m]?.ca || 0), borderColor: '#1F3864', borderDash: [5, 3], yAxisID: 'y1', tension: 0.3 }
       ]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, position: 'left', ticks: { precision: 0 }, title: { display: true, text: 'Nb signés' } }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'CA €' } } } }
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, position: 'left', ticks: { precision: 0 }, title: { display: true, text: 'Nombre' } }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'CA €' } } } }
   });
 }
 

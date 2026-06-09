@@ -42,13 +42,17 @@
     <!-- ====== DASHBOARD ====== -->
     <section id="view-dashboard" class="view active">
       <div class="view-header">
-        <h2>Vue d'ensemble — <span id="produit-actif-label"></span> <select id="dash-year" class="year-select"></select></h2>
+        <h2>Vue d'ensemble — <span id="produit-actif-label"></span>
+          <select id="dash-filtre" class="year-select" style="font-size:14px;min-width:180px;">
+            <option value="all">Tout afficher</option>
+          </select>
+        </h2>
       </div>
       <h3 style="margin-top:0;">Indicateurs prioritaires</h3>
       <div class="kpi-highlight">
         <div class="kpi-card-big" id="kpi-card-rdv"><div class="kpi-card-big-label">RDV qualifiés cette semaine</div><div class="kpi-card-big-value" id="kpi-rdv-sem">—</div><div class="kpi-card-big-objectif" id="kpi-rdv-sem-obj">Objectif 4 / semaine</div><div class="kpi-card-big-status" id="kpi-rdv-status"></div></div>
         <div class="kpi-card-big" id="kpi-card-prop"><div class="kpi-card-big-label">Offres rédigées ce mois</div><div class="kpi-card-big-value" id="kpi-prop-mois">—</div><div class="kpi-card-big-objectif" id="kpi-prop-mois-obj">Objectif 8 / mois</div><div class="kpi-card-big-status" id="kpi-prop-status"></div></div>
-        <div class="kpi-card-big" id="kpi-card-contrats"><div class="kpi-card-big-label">Contrats signés</div><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><select id="kpi-periode-filtre" style="padding:4px 8px;border:1px solid #D3D1C7;border-radius:4px;font-size:12px;"><option value="">Toutes périodes</option><option value="2526B">2526B</option><option value="2627A" selected>2627A</option><option value="2627B">2627B</option><option value="2728A">2728A</option></select></div><div class="kpi-card-big-value" id="kpi-contrats">—</div><div class="kpi-card-big-objectif" id="kpi-contrats-obj">Objectif période</div><div class="kpi-card-big-status" id="kpi-contrats-status"></div></div>
+        <div class="kpi-card-big" id="kpi-card-contrats"><div class="kpi-card-big-label">Contrats signés</div><div class="kpi-card-big-value" id="kpi-contrats">—</div><div class="kpi-card-big-objectif" id="kpi-contrats-obj">Objectif période</div><div class="kpi-card-big-status" id="kpi-contrats-status"></div></div>
       </div>
       <h3>KPI réels (depuis les tâches)</h3>
       <p class="hint" style="margin-top:0;">Calculés automatiquement à partir du tableau de tâches.</p>
@@ -257,7 +261,7 @@
       </div>
       <div class="section-block">
         <div class="section-header"><h3>Objectifs contacts par source</h3><button class="btn-danger" id="btn-reset-objectifs-sources">🔄 RAZ</button></div>
-        <div class="table-wrapper"><table class="data-table" id="objectifs-table"><thead><tr><th>Source</th><th>Période 2526B</th><th>Période 2627A</th><th>Total</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrapper"><table class="data-table" id="objectifs-table"><thead><tr><th>Source</th><th>Période 2526B</th><th>Période 2627A</th><th>Total cible</th><th>Réalisé (événements)</th><th>Atteinte</th></tr></thead><tbody></tbody></table></div>
       </div>
     </section>
 

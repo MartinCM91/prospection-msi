@@ -217,7 +217,7 @@ function fillPeriodeSelects() {
       sel.appendChild(o0);
     }
     if (selectId === 'cible-periode') {
-      const o0 = document.createElement('option'); o0.value = ''; o0.textContent = '—'; sel.appendChild(o0);
+      const o0 = document.createElement('option'); o0.value = ''; o0.textContent = '-'; sel.appendChild(o0);
     }
     periodes.forEach(p => {
       const o = document.createElement('option');
@@ -606,7 +606,7 @@ function openModalCible(prefill = {}) {
   domSel.addEventListener('change', () => updateColonneSections(parseInt(domSel.value)));
 
   const respSel = document.getElementById('cible-responsable');
-  respSel.innerHTML = '<option value="">—</option>';
+  respSel.innerHTML = '<option value="">-</option>';
   state.utilisateurs.forEach(u => {
     const o = document.createElement('option');
     o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
@@ -615,7 +615,7 @@ function openModalCible(prefill = {}) {
   });
 
   const srcSel = document.getElementById('cible-source');
-  srcSel.innerHTML = '<option value="">—</option>';
+  srcSel.innerHTML = '<option value="">-</option>';
   state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = (s.parent_id ? '  └ ' : '') + s.nom;
@@ -865,7 +865,7 @@ function renderPaiementsPhasesList() {
     let statut, statutClass;
     if (reste <= 0.01 && montantFact > 0) { statut = '✅ Payée intégralement'; statutClass = 'paye'; }
     else if (montantRecu > 0 && reste > 0.01) { statut = '🔸 Payée partiellement'; statutClass = 'partiel'; }
-    else if (enRetard) { statut = '⚠️ En retard — relance'; statutClass = 'retard'; }
+    else if (enRetard) { statut = '⚠️ En retard - relance'; statutClass = 'retard'; }
     else { statut = '📝 Émise (en attente)'; statutClass = 'emise'; }
 
     return `<div class="paiement-phase-card facture-card ${statutClass}" data-index="${i}">
@@ -966,7 +966,7 @@ async function savePaiementsPhases(cibleId) {
 }
 
   const respSel = document.getElementById('cible-responsable');
-  respSel.innerHTML = '<option value="">—</option>';
+  respSel.innerHTML = '<option value="">-</option>';
   state.utilisateurs.forEach(u => {
     const o = document.createElement('option');
     o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
@@ -975,7 +975,7 @@ async function savePaiementsPhases(cibleId) {
   });
 
   const srcSel = document.getElementById('cible-source');
-  srcSel.innerHTML = '<option value="">—</option>';
+  srcSel.innerHTML = '<option value="">-</option>';
   state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = (s.parent_id ? '  └ ' : '') + s.nom;
@@ -985,7 +985,7 @@ async function savePaiementsPhases(cibleId) {
 
 function updateResultatsSelect(domId) {
   const sel = document.getElementById('cible-resultat-select');
-  sel.innerHTML = '<option value="">— Choisir dans la liste —</option>';
+  sel.innerHTML = '<option value="">- Choisir dans la liste -</option>';
   state.resultatsAttendus.filter(r => r.domaine_id === domId).forEach(r => {
     if (!state.tempResultats.includes(r.libelle)) {
       const o = document.createElement('option');
@@ -1176,7 +1176,7 @@ async function saveCible(e) {
           }));
           await sb.from('paiements_phases').insert(phases);
         }
-        messageExtra = ' — Ticket Facturation créé automatiquement';
+        messageExtra = ' - Ticket Facturation créé automatiquement';
       }
     }
   }
@@ -1245,7 +1245,7 @@ function renderEventObjectifsList(evtId) {
   objs.forEach(o => {
     const div = document.createElement('div');
     div.className = 'event-objectif-item';
-    const realise = o.nombre_realise !== null ? o.nombre_realise : '—';
+    const realise = o.nombre_realise !== null ? o.nombre_realise : '-';
     div.innerHTML = `<div class="event-objectif-item-content"><div class="event-objectif-item-type">${o.type_objectif}</div><div class="event-objectif-item-desc">${o.description || '(sans description)'}</div></div><div class="event-objectif-item-stats"><strong>${realise}</strong> / ${o.nombre_cible}</div>`;
     div.addEventListener('click', () => openModalObjectifEvt(o));
     container.appendChild(div);
@@ -1421,7 +1421,7 @@ function openModalSource(prefill = {}) {
   document.getElementById('modal-source-title').textContent = prefill.id ? 'Modifier source' : 'Nouvelle source';
   document.getElementById('btn-delete-source').classList.toggle('hidden', !prefill.id);
   const parentSel = document.getElementById('source-parent');
-  parentSel.innerHTML = '<option value="">— Aucun parent (source principale)</option>';
+  parentSel.innerHTML = '<option value="">- Aucun parent (source principale)</option>';
   state.sources.filter(s => !s.parent_id && s.id !== prefill.id).forEach(s => {
     const o = document.createElement('option');
     o.value = s.id; o.textContent = s.nom;
@@ -1557,7 +1557,7 @@ function renderParametres() {
       periodesObj.sort((a,b) => (a.annee - b.annee) || a.periode_msi.localeCompare(b.periode_msi)).forEach(o => {
         const nbTaches = state.cibles.filter(c => c.periode_msi === o.periode_msi).length;
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td><strong>${o.periode_msi}</strong></td><td>${o.annee}</td><td>${o.commentaire || '—'}</td><td>${nbTaches}</td><td><button class="btn-danger btn-sm" data-del-periode="${o.id}">Supprimer</button></td>`;
+        tr.innerHTML = `<td><strong>${o.periode_msi}</strong></td><td>${o.annee}</td><td>${o.commentaire || '-'}</td><td>${nbTaches}</td><td><button class="btn-danger btn-sm" data-del-periode="${o.id}">Supprimer</button></td>`;
         tbody.appendChild(tr);
       });
       tbody.querySelectorAll('[data-del-periode]').forEach(btn => {
@@ -1579,7 +1579,7 @@ function renderParametres() {
     if (state.utilisateurs.length === 0) tbodyU.innerHTML = '<tr><td colspan="3" class="empty">Aucun utilisateur.</td></tr>';
     else state.utilisateurs.forEach(u => {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${u.prenom || '—'}</td><td>${u.nom || '—'}</td><td>${u.email || '—'}</td>`;
+      tr.innerHTML = `<td>${u.prenom || '-'}</td><td>${u.nom || '-'}</td><td>${u.email || '-'}</td>`;
       tbodyU.appendChild(tr);
     });
   }
@@ -1765,7 +1765,7 @@ function renderKanbanCard(c, col, body) {
 
   // Footer : responsable + échéance
   html += `<div class="kanban-card-meta">`;
-  html += `<span class="kc-resp">${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '—'}</span>`;
+  html += `<span class="kc-resp">${resp ? (resp.prenom||'').charAt(0)+'. '+(resp.nom||'') : '-'}</span>`;
   if (c.date_echeance && !c.est_terminee) {
     const isOver = isTacheEnRetard(c);
     html += `<span class="kanban-card-echeance${isOver ? ' overdue' : ''}">${new Date(c.date_echeance).toLocaleDateString('fr-FR')}${isOver ? ' ⚠️' : ''}</span>`;
@@ -1889,7 +1889,7 @@ function renderDashboard() {
   document.getElementById('kpi-prop-status').textContent = propMois >= state.kpi_prop_cible ? 'Atteint' : 'Retard';
 
   document.getElementById('kpi-contrats').textContent = nbSignesPeriode + (ciblesSigneesSansDate.length > 0 ? ' + ' + ciblesSigneesSansDate.length + ' ⏳' : '') + (useProjetsMsi ? ' projets' : '');
-  document.getElementById('kpi-contrats-obj').textContent = periodeFiltre ? 'Période ' + periodeFiltre + ' — Objectif ' + msiObjectif : 'Toutes périodes — Objectif ' + msiObjectif;
+  document.getElementById('kpi-contrats-obj').textContent = periodeFiltre ? 'Période ' + periodeFiltre + ' - Objectif ' + msiObjectif : 'Toutes périodes - Objectif ' + msiObjectif;
   const cardContrats = document.getElementById('kpi-card-contrats');
   const contratsOk = msiObjectif > 0 && nbSignesPeriode >= msiObjectif;
   cardContrats.className = 'kpi-card-big ' + (contratsOk ? 'kpi-card-ok' : '');
@@ -2026,7 +2026,7 @@ function renderDashboard() {
     const jours = Math.floor((new Date() - new Date(c.date_echeance)) / 86400000);
     const tr = document.createElement('tr');
     tr.className = 'retard';
-    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td>${col?.libelle || '—'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><strong>${jours} j</strong></td>`;
+    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td>${col?.libelle || '-'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><strong>${jours} j</strong></td>`;
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => openModalCible(c));
     tbodyR.appendChild(tr);
@@ -2261,7 +2261,7 @@ function renderTachesT0T1() {
     const tr = document.createElement('tr');
     if (statut.startsWith('⚠️')) tr.className = 'retard';
     else if (statut.startsWith('🟡')) tr.className = 'retard-soft';
-    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td>${col?.libelle || '—'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><span class="badge ${cls}">${statut}</span></td>`;
+    tr.innerHTML = `<td>${c.description_action || c.intitule}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td>${col?.libelle || '-'}</td><td>${new Date(c.date_echeance).toLocaleDateString('fr-FR')}</td><td><span class="badge ${cls}">${statut}</span></td>`;
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => openModalCible(c));
     tbody.appendChild(tr);
@@ -2491,7 +2491,7 @@ function renderMonthZoom() {
         const src = state.sources.find(s => s.id === item.source_id);
         let datesStr = new Date(item.date_evenement).toLocaleDateString('fr-FR');
         if (item.date_fin && item.date_fin !== item.date_evenement) datesStr += ' → ' + new Date(item.date_fin).toLocaleDateString('fr-FR');
-        html += `<div class="month-list-item" data-evt-id="${item.id}"><div class="month-list-date">${datesStr}</div><div class="month-list-content"><div class="month-list-titre">${item.quoi}</div><div class="month-list-meta">${src?.nom || '—'} · ${item.type_evenement || 'Extérieur'}${item.lieu_libre ? ' · '+item.lieu_libre : (item.lieu_ville ? ' · '+item.lieu_ville : '')}</div></div></div>`;
+        html += `<div class="month-list-item" data-evt-id="${item.id}"><div class="month-list-date">${datesStr}</div><div class="month-list-content"><div class="month-list-titre">${item.quoi}</div><div class="month-list-meta">${src?.nom || '-'} · ${item.type_evenement || 'Extérieur'}${item.lieu_libre ? ' · '+item.lieu_libre : (item.lieu_ville ? ' · '+item.lieu_ville : '')}</div></div></div>`;
       } else {
         const icon = JALON_ICONS[item.type_jalon] || '📍';
         let datesStr = new Date(item.date_debut).toLocaleDateString('fr-FR');
@@ -2574,7 +2574,7 @@ function renderEventsTable() {
     if (ev.date_fin && ev.date_fin !== ev.date_evenement) datesStr += ' → ' + new Date(ev.date_fin).toLocaleDateString('fr-FR');
     let lieu = ev.lieu_libre || [ev.lieu_ville, ev.lieu_code_postal].filter(x => x).join(' ');
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${datesStr}</td><td><span class="badge ${ev.type_evenement === 'Intérieur' ? 'badge-info' : 'badge-warning'}">${ev.type_evenement || 'Extérieur'}</span></td><td>${ev.quoi}</td><td>${src?.nom || '—'}</td><td>${lieu || '—'}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '—'}</td><td><span class="badge ${cls}">${statut}</span></td><td><button class="btn-link" data-id="${ev.id}">Modifier</button></td>`;
+    tr.innerHTML = `<td>${datesStr}</td><td><span class="badge ${ev.type_evenement === 'Intérieur' ? 'badge-info' : 'badge-warning'}">${ev.type_evenement || 'Extérieur'}</span></td><td>${ev.quoi}</td><td>${src?.nom || '-'}</td><td>${lieu || '-'}</td><td>${resp ? (resp.prenom||'')+' '+(resp.nom||'') : '-'}</td><td><span class="badge ${cls}">${statut}</span></td><td><button class="btn-link" data-id="${ev.id}">Modifier</button></td>`;
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.btn-link').forEach(btn => {
@@ -2664,7 +2664,7 @@ function renderObjectifsTable() {
       const total = totalP1 + totalP2;
       const pct = total > 0 ? Math.round((realise / total) * 100) : 0;
       const pctCls = pct >= 80 ? 'perf-bon' : (pct >= 40 ? 'perf-moyen' : 'perf-faible');
-      tr.innerHTML = `<td><span class="chevron">▶</span>${src.nom}</td><td>${totalP1}</td><td>${totalP2}</td><td><strong>${total}</strong></td><td>${realise}</td><td class="${total > 0 ? pctCls : ''}">${total > 0 ? pct + '%' : '—'}</td>`;
+      tr.innerHTML = `<td><span class="chevron">▶</span>${src.nom}</td><td>${totalP1}</td><td>${totalP2}</td><td><strong>${total}</strong></td><td>${realise}</td><td class="${total > 0 ? pctCls : ''}">${total > 0 ? pct + '%' : '-'}</td>`;
     } else {
       if (src.isChild) tr.className = 'objectif-child-row';
       const p1 = state.objectifs.find(o => o.source_id === src.id && o.periode === 'P1');
@@ -2672,7 +2672,7 @@ function renderObjectifsTable() {
       const total = (p1?.cible_contacts||0) + (p2?.cible_contacts||0);
       const pct = total > 0 ? Math.round((realise / total) * 100) : 0;
       const pctCls = pct >= 80 ? 'perf-bon' : (pct >= 40 ? 'perf-moyen' : 'perf-faible');
-      tr.innerHTML = `<td>${src.nom}</td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P1" value="${p1?.cible_contacts||0}" min="0"></td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P2" value="${p2?.cible_contacts||0}" min="0"></td><td><strong>${total}</strong></td><td>${realise}</td><td class="${total > 0 ? pctCls : ''}">${total > 0 ? pct + '%' : '—'}</td>`;
+      tr.innerHTML = `<td>${src.nom}</td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P1" value="${p1?.cible_contacts||0}" min="0"></td><td><input type="number" class="obj-input" data-source="${src.id}" data-periode="P2" value="${p2?.cible_contacts||0}" min="0"></td><td><strong>${total}</strong></td><td>${realise}</td><td class="${total > 0 ? pctCls : ''}">${total > 0 ? pct + '%' : '-'}</td>`;
     }
     tbody.appendChild(tr);
   });
@@ -2823,7 +2823,7 @@ function renderIndicateursDirecteur(d) {
   if (!container) return;
   container.innerHTML = `
     <div class="kpi-card kpi-color-green"><div class="kpi-label">Panier moyen</div><div class="kpi-value">${formatEuro(d.panierMoyen)} €</div><div class="kpi-objectif">CA signé / ${d.nbSignes} signés</div></div>
-    <div class="kpi-card kpi-color-blue"><div class="kpi-label">Délai moyen de signature</div><div class="kpi-value">${d.delaiMoyen != null ? d.delaiMoyen + ' j' : '—'}</div><div class="kpi-objectif">${d.delaiMoyen != null ? 'De la création à la signature' : 'Pas assez de données'}</div></div>
+    <div class="kpi-card kpi-color-blue"><div class="kpi-label">Délai moyen de signature</div><div class="kpi-value">${d.delaiMoyen != null ? d.delaiMoyen + ' j' : '-'}</div><div class="kpi-objectif">${d.delaiMoyen != null ? 'De la création à la signature' : 'Pas assez de données'}</div></div>
     <div class="kpi-card kpi-color-red"><div class="kpi-label">Taux de perte</div><div class="kpi-value">${d.tauxPerte} %</div><div class="kpi-objectif">${d.nbPerdus} perdus / ${d.nbSignes + d.nbPerdus} clos</div></div>
     <div class="kpi-card kpi-color-purple"><div class="kpi-label">Valeur du pipeline</div><div class="kpi-value">${formatEuro(d.valeurPipeline)} €</div><div class="kpi-objectif">CA en négociation</div></div>
   `;
@@ -2871,7 +2871,7 @@ function renderEntonnoirTable(etapes) {
   for (let i = 1; i < etapes.length; i++) {
     const taux = etapes[i-1].val > 0 ? Math.round((etapes[i].val / etapes[i-1].val) * 100) : 0;
     let interpretation = '', cls = '';
-    if (etapes[i-1].val === 0) { interpretation = '— Aucune donnée'; }
+    if (etapes[i-1].val === 0) { interpretation = '- Aucune donnée'; }
     else if (taux >= 70) { interpretation = '✅ Très bon passage'; cls = 'perf-bon'; }
     else if (taux >= 40) { interpretation = '🟠 Correct'; cls = 'perf-moyen'; }
     else { interpretation = '🔴 Point de perte à travailler'; cls = 'perf-faible'; }
@@ -2909,7 +2909,7 @@ function renderSourcesTable(sourcesArr) {
     if (s.taux >= 50 && s.projets_msi > 0) { perf = '⭐ À favoriser'; cls = 'perf-bon'; }
     else if (s.projets_msi > 0) { perf = '🟠 Moyenne'; cls = 'perf-moyen'; }
     else if (s.taches >= 3) { perf = '🔴 Peu efficace'; cls = 'perf-faible'; }
-    else { perf = '— Trop peu de données'; }
+    else { perf = '- Trop peu de données'; }
     const tr = document.createElement('tr');
     tr.innerHTML = `<td><strong>${s.nom}</strong></td><td>${s.taches}</td><td>${s.propales}</td><td>${s.projets_msi}</td><td class="${cls}">${s.taux}%</td><td>${formatEuro(s.ca)} €</td><td>${perf}</td>`;
     tbody.appendChild(tr);
@@ -3114,7 +3114,7 @@ function renderRevueContent() {
   }
 
   let html = `
-    <h3 style="margin-top:0;">Rétrospective — ${label}</h3>
+    <h3 style="margin-top:0;">Rétrospective - ${label}</h3>
     <div class="revue-kpi-grid">
       <div class="revue-kpi-card">
         <div class="revue-kpi-label">Appels / Contacts</div>
@@ -3153,7 +3153,7 @@ function renderRevueContent() {
     </div>
   `;
 
-  // Taux de conversion — basés sur l'historique des tâches de la période (cohérent avec l'entonnoir)
+  // Taux de conversion - basés sur l'historique des tâches de la période (cohérent avec l'entonnoir)
   const cbIdsRevue = new Set(ciblesFiltrees.map(c => c.id));
   const histRevue = (state.historiqueEtapes || []).filter(h => cbIdsRevue.has(h.cible_id));
   const passeRevue = {};

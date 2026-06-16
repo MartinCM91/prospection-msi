@@ -2002,6 +2002,9 @@ function renderDashboard() {
   if (elCaRestant) { elCaRestant.textContent = formatEuro(caRestant) + ' € TTC'; elCaRestant.style.color = caRestant > 0.01 ? '#A32D2D' : '#1D9E75'; }
   document.getElementById('kpi-ca-objectif').textContent = formatEuro(caObjectif) + ' €';
   document.getElementById('kpi-atteinte-ca').textContent = atteinteCA + ' %';
+  const atteinteFacturation = caObjectif > 0 ? Math.round((caFacture / caObjectif) * 100) : 0;
+  const elAttFact = document.getElementById('kpi-atteinte-fact');
+  if (elAttFact) { elAttFact.textContent = atteinteFacturation + ' %'; elAttFact.style.color = atteinteFacturation >= 100 ? '#1D9E75' : (atteinteFacturation >= 50 ? '#BA7517' : '#A32D2D'); }
   document.getElementById('kpi-cibles-act').textContent = ciblesOuvertes.length + (periodeFiltre ? ' (' + periodeFiltre + ')' : '');
 
   // Périodes

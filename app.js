@@ -1854,6 +1854,8 @@ function renderDashboard() {
   const ciblesSignees = cibles.filter(c => c.statut_avancement === 'Signé');
   const ciblesPerdues = cibles.filter(c => c.statut_avancement === 'Perdu');
   const ciblesEnNegociation = cibles.filter(c => c.statut_avancement === 'Négociation' && !c.est_terminee);
+  const ciblesSigneesAvecDate = ciblesSignees.filter(c => c.date_signature);
+  const ciblesSigneesSansDate = ciblesSignees.filter(c => !c.date_signature);
 
   // Projets MSI issus des tâches signées du produit actif
   const projetsMsiActifs = (state.projetsMsi || []).filter(p => {
@@ -1972,9 +1974,8 @@ function renderDashboard() {
   // CA signé = somme montant_estime des tickets col 5 avec statut "Signé"
   const caSigne = ciblesSignees.reduce((s, c) => s + (c.montant_estime || 0), 0);
 
-  // CA en négociation = somme montant_estime TTC des tickets en Négociation (col 5)
+  // CA en négociation = montant HT des tickets col 5 statut "Négociation" (offres pas encore signées)
   const caNegoHT = ciblesEnNegociation.reduce((s, c) => s + (c.montant_estime || 0), 0);
-  const caNegoTTC = caNegoHT * 1.2;
 
   // CA facturation = somme des factures émises (HT) des tickets ouverts
   const allFactures = (state.paiementsPhases || []).filter(p => {
@@ -1991,7 +1992,7 @@ function renderDashboard() {
   const atteinteCA = caObjectif > 0 ? Math.round((caSigne / caObjectif) * 100) : 0;
 
   document.getElementById('kpi-ca-signe').textContent = formatEuro(caSigne) + ' € HT';
-  document.getElementById('kpi-ca-cours').textContent = formatEuro(caNegoTTC) + ' € TTC';
+  document.getElementById('kpi-ca-cours').textContent = formatEuro(caNegoHT) + ' € HT';
   const elFacture = document.getElementById('kpi-ca-facture');
   const elCaRestant = document.getElementById('kpi-ca-restant');
   if (elFacture) elFacture.textContent = formatEuro(caFacture) + ' € HT';

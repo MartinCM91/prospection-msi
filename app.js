@@ -1849,8 +1849,11 @@ function renderDashboard() {
   const objPeriode = periodeFiltre ? state.objectifsAnnuels.find(o => o.annee === dashAnnee && o.periode_msi === periodeFiltre) : null;
   const caObjectif = objAnnuelGlobal?.ca_cible || 0;
   const msiObjectif = objPeriode ? (objPeriode.msi_cible || 0) : (objAnnuelGlobal?.msi_cible || 0);
-  const cibles = getCiblesProduitActif();
-  const ciblesOuvertes = periodeFiltre ? cibles.filter(c => !c.est_terminee && c.periode_msi === periodeFiltre) : cibles.filter(c => !c.est_terminee);
+  const ciblesBrutes = getCiblesProduitActif();
+  // Appliquer les filtres à TOUTES les données
+  let cibles = ciblesBrutes;
+  if (periodeFiltre) cibles = cibles.filter(c => c.periode_msi === periodeFiltre);
+  const ciblesOuvertes = cibles.filter(c => !c.est_terminee);
   const ciblesSignees = cibles.filter(c => c.statut_avancement === 'Signé');
   const ciblesPerdues = cibles.filter(c => c.statut_avancement === 'Perdu');
   const ciblesEnNegociation = cibles.filter(c => c.statut_avancement === 'Négociation' && !c.est_terminee);
@@ -2007,7 +2010,7 @@ function renderDashboard() {
   tbodyPer.innerHTML = '';
   if (periodes.length === 0) tbodyPer.innerHTML = '<tr><td colspan="7" class="empty">Aucune période définie.</td></tr>';
   else periodes.forEach(p => {
-    const cs = cibles.filter(c => c.periode_msi === p.periode_msi);
+    const cs = ciblesBrutes.filter(c => c.periode_msi === p.periode_msi);
     const caSP = cs.filter(c => c.statut_avancement === 'Signé').reduce((s,c) => s + (c.montant_estime||0), 0);
     const caCP = cs.filter(c => !['Signé','Perdu'].includes(c.statut_avancement) && !c.est_terminee).reduce((s,c) => s + ((c.montant_estime||0)*(c.niveau_confiance||0)), 0);
     const sigP = cs.filter(c => c.statut_avancement === 'Signé').length;

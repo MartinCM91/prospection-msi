@@ -781,7 +781,7 @@ function editProjetMsi(index) {
         <div class="form-field"><label>Période MSI</label><select class="pm-periode">${periodesOpts}</select></div>
       </div>
       <div class="form-row form-row-2">
-        <div class="form-field"><label>Montant (€)</label><input type="number" class="pm-montant" min="0" step="0.01" value="${p.montant || 0}"></div>
+        <div class="form-field"><label>Montant HT (€)</label><input type="text" inputmode="decimal" class="pm-montant" value="${p.montant || 0}" placeholder="Ex : 19250,50"></div>
         <div class="form-field"><label>Nb équipes ICAM</label><input type="number" class="pm-equipes" min="1" value="${p.nb_equipes || 1}"></div>
       </div>
       <div style="text-align:right;margin-top:6px;">
@@ -794,7 +794,7 @@ function editProjetMsi(index) {
       ...p,
       intitule: card.querySelector('.pm-intitule').value,
       periode_msi: card.querySelector('.pm-periode').value,
-      montant: parseFloat(card.querySelector('.pm-montant').value) || 0,
+      montant: parseDecimal(card.querySelector('.pm-montant').value),
       nb_equipes: parseInt(card.querySelector('.pm-equipes').value) || 1
     };
     renderProjetsMsiList();
@@ -1845,16 +1845,15 @@ function renderDashboard() {
   const dashAnnee = state.annee;
 
   const objAnnuelGlobal = state.objectifsAnnuels.find(o => o.annee === dashAnnee && o.periode_msi === 'ANNUEL');
+  // Objectif : si une période est sélectionnée, prendre l'objectif de CETTE période, sinon ANNUEL
+  const objPeriode = periodeFiltre ? state.objectifsAnnuels.find(o => o.annee === dashAnnee && o.periode_msi === periodeFiltre) : null;
   const caObjectif = objAnnuelGlobal?.ca_cible || 0;
-  const msiObjectif = objAnnuelGlobal?.msi_cible || 0;
+  const msiObjectif = objPeriode ? (objPeriode.msi_cible || 0) : (objAnnuelGlobal?.msi_cible || 0);
   const cibles = getCiblesProduitActif();
-  const ciblesOuvertes = cibles.filter(c => !c.est_terminee);
-  const ciblesEnAvancement = cibles.filter(c => getColonneCible(c) === 5 && !c.est_terminee);
+  const ciblesOuvertes = periodeFiltre ? cibles.filter(c => !c.est_terminee && c.periode_msi === periodeFiltre) : cibles.filter(c => !c.est_terminee);
   const ciblesSignees = cibles.filter(c => c.statut_avancement === 'Signé');
   const ciblesPerdues = cibles.filter(c => c.statut_avancement === 'Perdu');
   const ciblesEnNegociation = cibles.filter(c => c.statut_avancement === 'Négociation' && !c.est_terminee);
-  const ciblesSigneesAvecDate = ciblesSignees.filter(c => c.date_signature);
-  const ciblesSigneesSansDate = ciblesSignees.filter(c => !c.date_signature);
 
   // Projets MSI issus des tâches signées du produit actif
   const projetsMsiActifs = (state.projetsMsi || []).filter(p => {
@@ -1869,9 +1868,6 @@ function renderDashboard() {
   const ciblesSigneesPeriode = periodeFiltre ? ciblesSignees.filter(c => c.periode_msi === periodeFiltre) : ciblesSignees;
   const useProjetsMsi = projetsMsiActifs.length > 0;
   const nbSignesPeriode = useProjetsMsi ? nbProjetsMsiPeriode : ciblesSigneesPeriode.length;
-  const caSigne = useProjetsMsi ? caProjetsPeriode : ciblesSigneesPeriode.reduce((s,c) => s + (c.montant_estime || 0), 0);
-  const caEnCours = ciblesEnAvancement.filter(c => !['Signé','Perdu'].includes(c.statut_avancement)).reduce((s,c) => s + ((c.montant_estime || 0) * (c.niveau_confiance || 0)), 0);
-  const atteinteCA = caObjectif > 0 ? Math.round((caSigne / caObjectif) * 100) : 0;
   const rdvSem = state.suivi.filter(s => s.type_activite === 'RDV qualifiés' && s.annee === state.annee && s.semaine === state.hebdo_semaine).reduce((sum,s) => sum + (s.nombre||0), 0);
   const propMois = state.suivi.filter(s => s.type_activite === 'Propositions envoyées' && s.annee === state.annee && s.semaine >= state.hebdo_semaine-3 && s.semaine <= state.hebdo_semaine).reduce((sum,s) => sum + (s.nombre||0), 0);
 
@@ -1972,23 +1968,37 @@ function renderDashboard() {
     elRealSignesPct.className = 'kpi-percent' + (pct >= 100 ? '' : ' alert');
   }
 
-  document.getElementById('kpi-ca-signe').textContent = formatEuro(caSigne);
-  document.getElementById('kpi-ca-cours').textContent = formatEuro(caEnCours);
-  // CA facturation et restant depuis paiements_phases (montant_recu pour le restant)
-  const allPaiements = (state.paiementsPhases || []).filter(p => {
+  // === INDICATEURS FINANCIERS (définitions exactes) ===
+  // CA signé = somme montant_estime des tickets col 5 avec statut "Signé"
+  const caSigne = ciblesSignees.reduce((s, c) => s + (c.montant_estime || 0), 0);
+
+  // CA en négociation = somme montant_estime TTC des tickets en Négociation (col 5)
+  const caNegoHT = ciblesEnNegociation.reduce((s, c) => s + (c.montant_estime || 0), 0);
+  const caNegoTTC = caNegoHT * 1.2;
+
+  // CA facturation = somme des factures émises (HT) des tickets ouverts
+  const allFactures = (state.paiementsPhases || []).filter(p => {
     const cible = cibles.find(c => c.id === p.cible_id);
-    return cible != null;
+    return cible != null && !cible.est_terminee;
   });
-  const caFacture = allPaiements.reduce((s, p) => s + (p.montant || 0), 0);
-  const caRecu = allPaiements.reduce((s, p) => s + (p.montant_recu || 0), 0);
-  const caRestant = caFacture - caRecu;
+  const caFacture = allFactures.reduce((s, p) => s + (p.montant || 0), 0);
+
+  // CA restant à payer = facturé - reçu (ce qui n'a pas été payé)
+  const caRecu = allFactures.reduce((s, p) => s + (p.montant_recu || 0), 0);
+  const caRestant = (caFacture * 1.2) - caRecu; // facturé TTC - reçu TTC
+
+  // Atteinte CA = CA signé / Objectif CA
+  const atteinteCA = caObjectif > 0 ? Math.round((caSigne / caObjectif) * 100) : 0;
+
+  document.getElementById('kpi-ca-signe').textContent = formatEuro(caSigne) + ' € HT';
+  document.getElementById('kpi-ca-cours').textContent = formatEuro(caNegoTTC) + ' € TTC';
   const elFacture = document.getElementById('kpi-ca-facture');
   const elCaRestant = document.getElementById('kpi-ca-restant');
-  if (elFacture) elFacture.textContent = formatEuro(caFacture);
-  if (elCaRestant) { elCaRestant.textContent = formatEuro(caRestant); elCaRestant.style.color = caRestant > 0 ? '#A32D2D' : '#1D9E75'; }
-  document.getElementById('kpi-ca-objectif').textContent = formatEuro(caObjectif);
+  if (elFacture) elFacture.textContent = formatEuro(caFacture) + ' € HT';
+  if (elCaRestant) { elCaRestant.textContent = formatEuro(caRestant) + ' € TTC'; elCaRestant.style.color = caRestant > 0.01 ? '#A32D2D' : '#1D9E75'; }
+  document.getElementById('kpi-ca-objectif').textContent = formatEuro(caObjectif) + ' €';
   document.getElementById('kpi-atteinte-ca').textContent = atteinteCA + ' %';
-  document.getElementById('kpi-cibles-act').textContent = ciblesOuvertes.length;
+  document.getElementById('kpi-cibles-act').textContent = ciblesOuvertes.length + (periodeFiltre ? ' (' + periodeFiltre + ')' : '');
 
   // Périodes
   const periodes = state.objectifsAnnuels.filter(o => o.annee === state.annee && o.periode_msi !== 'ANNUEL');
@@ -2634,7 +2644,7 @@ function renderObjectifsAnnuels() {
   if (!list.find(o => o.periode_msi === 'ANNUEL')) {
     const tr = document.createElement('tr');
     tr.style.background = '#FFF9E6';
-    tr.innerHTML = `<td><strong>ANNUEL</strong> <span class="badge badge-warning">À créer</span></td><td><input type="number" class="obj-annuel-input" data-periode="ANNUEL" data-field="ca_cible" value="0" min="0"></td><td><input type="number" class="obj-annuel-input" data-periode="ANNUEL" data-field="msi_cible" value="0" min="0"></td><td><input type="text" class="obj-annuel-input" data-periode="ANNUEL" data-field="commentaire" placeholder="Objectif global"></td><td></td>`;
+    tr.innerHTML = `<td><strong>ANNUEL</strong> <span class="badge badge-warning">À créer</span></td><td><input type="text" inputmode="decimal" class="obj-annuel-input" data-periode="ANNUEL" data-field="ca_cible" value="0"></td><td><input type="text" inputmode="decimal" class="obj-annuel-input" data-periode="ANNUEL" data-field="msi_cible" value="0"></td><td><input type="text" class="obj-annuel-input" data-periode="ANNUEL" data-field="commentaire" placeholder="Objectif global"></td><td></td>`;
     tbody.appendChild(tr);
   }
   const sorted = [...list].sort((a,b) => a.periode_msi === 'ANNUEL' ? -1 : (b.periode_msi === 'ANNUEL' ? 1 : (a.periode_msi||'').localeCompare(b.periode_msi||'')));
@@ -2642,7 +2652,7 @@ function renderObjectifsAnnuels() {
     const tr = document.createElement('tr');
     const isAnnuel = obj.periode_msi === 'ANNUEL';
     if (isAnnuel) tr.style.background = '#F0F4F9';
-    tr.innerHTML = `<td><strong>${obj.periode_msi}</strong></td><td><input type="number" class="obj-annuel-input" data-id="${obj.id}" data-field="ca_cible" value="${obj.ca_cible||0}" min="0"></td><td><input type="number" class="obj-annuel-input" data-id="${obj.id}" data-field="msi_cible" value="${obj.msi_cible||0}" min="0"></td><td><input type="text" class="obj-annuel-input" data-id="${obj.id}" data-field="commentaire" value="${obj.commentaire||''}"></td><td>${isAnnuel ? '' : '<button class="btn-icon" data-delete="'+obj.id+'">✕</button>'}</td>`;
+    tr.innerHTML = `<td><strong>${obj.periode_msi}</strong></td><td><input type="text" inputmode="decimal" class="obj-annuel-input" data-id="${obj.id}" data-field="ca_cible" value="${obj.ca_cible||0}"></td><td><input type="text" inputmode="decimal" class="obj-annuel-input" data-id="${obj.id}" data-field="msi_cible" value="${obj.msi_cible||0}"></td><td><input type="text" class="obj-annuel-input" data-id="${obj.id}" data-field="commentaire" value="${obj.commentaire||''}"></td><td>${isAnnuel ? '' : '<button class="btn-icon" data-delete="'+obj.id+'">✕</button>'}</td>`;
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.obj-annuel-input').forEach(input => {
@@ -2650,15 +2660,21 @@ function renderObjectifsAnnuels() {
       const id = input.dataset.id;
       const periode = input.dataset.periode;
       const field = input.dataset.field;
-      const val = field === 'commentaire' ? input.value : (parseFloat(input.value) || 0);
+      const val = field === 'commentaire' ? input.value : parseDecimal(input.value);
       if (id) await sb.from('objectifs_annuels').update({ [field]: val, updated_at: new Date().toISOString() }).eq('id', id);
       else if (periode === 'ANNUEL') {
-        const obj = { annee: state.obj_annee, periode_msi: 'ANNUEL', ca_cible: 0, msi_cible: 0, commentaire: '' };
-        obj[field] = val;
-        await sb.from('objectifs_annuels').insert([obj]);
+        // Vérifier si ANNUEL existe déjà avant de créer
+        const existing = state.objectifsAnnuels.find(o => o.annee === state.obj_annee && o.periode_msi === 'ANNUEL');
+        if (existing) {
+          await sb.from('objectifs_annuels').update({ [field]: val, updated_at: new Date().toISOString() }).eq('id', existing.id);
+        } else {
+          const obj = { annee: state.obj_annee, periode_msi: 'ANNUEL', ca_cible: 0, msi_cible: 0, commentaire: '' };
+          obj[field] = val;
+          await sb.from('objectifs_annuels').insert([obj]);
+        }
       }
       await loadData(); renderObjectifsAnnuels(); renderDashboard();
-      showToast('Mis à jour', 'success');
+      showToast('Objectif mis à jour', 'success');
     });
   });
   tbody.querySelectorAll('[data-delete]').forEach(btn => {

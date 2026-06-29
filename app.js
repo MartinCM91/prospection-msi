@@ -130,7 +130,10 @@ async function loadData() {
   state.produits = results[0].data || [];
   state.sources = results[1].data || [];
   state.utilisateursAll = results[2].data || [];
-  state.utilisateurs = state.utilisateursAll.filter(u => u.actif !== false);
+  // IMPORTANT : on garde tous les utilisateurs dans state.utilisateurs pour préserver l'historique.
+  // Les utilisateurs désactivés sont seulement retirés des listes de saisie active.
+  state.utilisateurs = state.utilisateursAll;
+  state.utilisateursActifs = state.utilisateursAll.filter(u => u.actif !== false);
   state.objectifs = results[3].data || [];
   state.evenements = results[4].data || [];
   state.suivi = results[5].data || [];
@@ -163,6 +166,49 @@ function getNomUtilisateur(id) {
   if (!u) return '—';
   const nomComplet = `${u.prenom || ''} ${u.nom || ''}`.trim();
   return nomComplet || u.email || 'Utilisateur';
+}
+
+function isUtilisateurActif(u) {
+  return u && u.actif !== false;
+}
+
+function getUtilisateursActifs() {
+  return (state.utilisateursAll || state.utilisateurs || []).filter(u => u.actif !== false);
+}
+
+function getUtilisateursPourSelect(selectedId = null) {
+  const selected = selectedId ? Number(selectedId) : null;
+  const users = getUtilisateursActifs();
+
+  // Si on modifie une ancienne ligne affectée à une personne archivée,
+  // on garde cette personne dans la liste pour ne pas perdre l'historique.
+  if (selected) {
+    const oldUser = getUtilisateurById(selected);
+    if (oldUser && !users.some(u => u.id === oldUser.id)) users.push(oldUser);
+  }
+
+  return users.sort((a, b) => (`${a.prenom || ''} ${a.nom || ''}`).localeCompare(`${b.prenom || ''} ${b.nom || ''}`));
+}
+
+function getUtilisateursAvecActiviteHebdo(annee, semaine = null, startWeek = null, endWeek = null) {
+  const users = [...getUtilisateursActifs()];
+  (state.utilisateursAll || []).forEach(u => {
+    const hasSuivi = (state.suivi || []).some(s => {
+      if (s.utilisateur_id !== u.id || s.annee !== annee) return false;
+      if (semaine !== null) return s.semaine === semaine;
+      if (startWeek !== null && endWeek !== null) return s.semaine >= startWeek && s.semaine <= endWeek;
+      return true;
+    });
+    if (hasSuivi && !users.some(x => x.id === u.id)) users.push(u);
+  });
+  return users.sort((a, b) => (`${a.prenom || ''} ${a.nom || ''}`).localeCompare(`${b.prenom || ''} ${b.nom || ''}`));
+}
+
+function getNomUtilisateurAvecStatut(id) {
+  const u = getUtilisateurById(id);
+  if (!u) return '—';
+  const base = getNomUtilisateur(id);
+  return u.actif === false ? `${base} (archivé)` : base;
 }
 
 // Parse un montant saisi en français (virgule ou point accepté)
@@ -307,9 +353,11 @@ function setupFilters() {
   document.getElementById('plan-periode').addEventListener('change', e => { state.plan_periode = e.target.value; renderKanban(); });
   const planResp = document.getElementById('plan-responsable');
   planResp.innerHTML = '<option value="">Tous</option>';
-  state.utilisateurs.forEach(u => {
+  // Filtre : on garde aussi les personnes archivées pour pouvoir retrouver leur historique.
+  (state.utilisateursAll || state.utilisateurs || []).forEach(u => {
     const o = document.createElement('option');
-    o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
+    o.value = u.id;
+    o.textContent = getNomUtilisateurAvecStatut(u.id);
     planResp.appendChild(o);
   });
   planResp.addEventListener('change', e => { state.plan_responsable = e.target.value; renderKanban(); });
@@ -1246,9 +1294,10 @@ function openModal(prefill = {}) {
   });
   const respSelect = document.getElementById('event-responsable');
   respSelect.innerHTML = '<option value="">Choisir...</option>';
-  state.utilisateurs.forEach(u => {
+  getUtilisateursPourSelect(prefill.responsable_id || (!prefill.id ? state.user.id : null)).forEach(u => {
     const o = document.createElement('option');
-    o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
+    o.value = u.id;
+    o.textContent = getNomUtilisateurAvecStatut(u.id);
     if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) o.selected = true;
     respSelect.appendChild(o);
   });
@@ -1712,7 +1761,7 @@ function renderParametres() {
   if (tableU && tbodyU) {
     const headRow = tableU.querySelector('thead tr');
     if (headRow) {
-      headRow.innerHTML = '<th>Prénom</th><th>Nom</th><th>Email</th><th>Statut</th><th>Action</th>';
+      headRow.innerHTML = '<th>Prénom</th><th>Nom</th><th>Historique</th><th>Disponibilité</th><th>Action</th>';
     }
 
     const users = state.utilisateursAll || state.utilisateurs || [];
@@ -1728,11 +1777,11 @@ function renderParametres() {
         tr.innerHTML = `
           <td>${u.prenom || '—'}</td>
           <td>${u.nom || '—'}</td>
-          <td>${u.email || '—'}</td>
-          <td><span class="badge ${isActive ? 'badge-success' : 'badge-secondary'}">${isActive ? 'Actif' : 'Désactivé'}</span></td>
+          <td>Conservé</td>
+          <td><span class="badge ${isActive ? 'badge-success' : 'badge-secondary'}">${isActive ? 'Disponible' : 'Archivé'}</span></td>
           <td>
-            <button type="button" class="${isActive ? 'btn-danger' : 'btn-primary'} btn-sm" data-toggle-user-active="${u.id}" data-next-active="${isActive ? 'false' : 'true'}">
-              ${isActive ? 'Désactiver' : 'Réactiver'}
+            <button type="button" class="${isActive ? 'btn-danger' : 'btn-primary'} btn-sm" data-toggle-user-active="${u.id}" data-next-active="${isActive ? 'false' : 'true'}" title="Cette action conserve tout l'historique">
+              ${isActive ? 'Retirer des listes' : 'Réafficher'}
             </button>
           </td>`;
         tbodyU.appendChild(tr);
@@ -1753,15 +1802,12 @@ async function toggleUtilisateurActif(userId, actif) {
   const user = (state.utilisateursAll || []).find(u => u.id === userId);
   if (!user) return;
 
-  if (!actif && user.id === state.user?.id) {
-    showToast('Impossible de désactiver le compte actuellement connecté.', 'error');
-    return;
-  }
-
   const nom = `${user.prenom || ''} ${user.nom || ''}`.trim() || user.email || 'cet utilisateur';
   const message = actif
-    ? `Réactiver ${nom} ?`
-    : `Désactiver ${nom} ? Son historique sera conservé, mais il disparaîtra des listes actives.`;
+    ? `Réafficher ${nom} dans les listes de saisie ?`
+    : `Retirer ${nom} des nouvelles listes de saisie ?
+
+Important : son historique, ses anciens événements, ses tâches et son suivi restent conservés.`;
 
   if (!confirm(message)) return;
 
@@ -1771,7 +1817,7 @@ async function toggleUtilisateurActif(userId, actif) {
     return;
   }
 
-  showToast(actif ? 'Utilisateur réactivé' : 'Utilisateur désactivé', 'success');
+  showToast(actif ? 'Utilisateur réaffiché dans les listes' : 'Utilisateur retiré des nouvelles listes', 'success');
   await loadData();
   renderAll();
 }
@@ -2394,11 +2440,13 @@ function renderHebdoCharts() {
 function renderHebdo() {
   const tbody = document.querySelector('#hebdo-table tbody');
   tbody.innerHTML = '';
-  if (state.utilisateurs.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="empty">Aucun utilisateur.</td></tr>'; return; }
-  state.utilisateurs.forEach(u => {
+  const usersHebdo = getUtilisateursAvecActiviteHebdo(state.hebdo_annee, state.hebdo_semaine);
+  if (usersHebdo.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="empty">Aucun utilisateur actif.</td></tr>'; return; }
+  usersHebdo.forEach(u => {
     const tr = document.createElement('tr');
+    if (u.actif === false) tr.className = 'row-muted';
     let total = 0;
-    let html = `<td><strong>${u.prenom||''} ${u.nom||''}</strong></td>`;
+    let html = `<td><strong>${getNomUtilisateurAvecStatut(u.id)}</strong></td>`;
     ACTIVITES.forEach(act => {
       const rec = state.suivi.find(s => s.utilisateur_id === u.id && s.annee === state.hebdo_annee && s.semaine === state.hebdo_semaine && s.type_activite === act);
       const val = rec?.nombre ?? 0;
@@ -2411,7 +2459,7 @@ function renderHebdo() {
   });
   tbody.querySelectorAll('.hebdo-input').forEach(input => {
     input.addEventListener('change', async () => {
-      const userId = input.dataset.user;
+      const userId = parseInt(input.dataset.user);
       const activite = input.dataset.activite;
       const nombre = parseInt(input.value) || 0;
       const existing = state.suivi.find(s => s.utilisateur_id === userId && s.annee === state.hebdo_annee && s.semaine === state.hebdo_semaine && s.type_activite === activite);
@@ -2429,13 +2477,15 @@ function renderHebdo() {
   const tbody2 = document.querySelector('#hebdo-recap-table tbody');
   tbody2.innerHTML = '';
   const startWeek = Math.max(1, state.hebdo_semaine - 3);
-  state.utilisateurs.forEach(u => {
+  const usersRecap = getUtilisateursAvecActiviteHebdo(state.hebdo_annee, null, startWeek, state.hebdo_semaine);
+  usersRecap.forEach(u => {
     const cumul = {};
     ACTIVITES.forEach(act => {
       cumul[act] = state.suivi.filter(s => s.utilisateur_id === u.id && s.annee === state.hebdo_annee && s.semaine >= startWeek && s.semaine <= state.hebdo_semaine && s.type_activite === act).reduce((sum,s) => sum + (s.nombre||0), 0);
     });
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><strong>${u.prenom||''} ${u.nom||''}</strong></td><td>${cumul['Appels / Contacts']}</td><td>${cumul['RDV planifiés'] || 0}</td><td>${cumul['RDV qualifiés']}</td><td>${cumul['Propositions envoyées']}</td>`;
+    if (u.actif === false) tr.className = 'row-muted';
+    tr.innerHTML = `<td><strong>${getNomUtilisateurAvecStatut(u.id)}</strong></td><td>${cumul['Appels / Contacts']}</td><td>${cumul['RDV planifiés'] || 0}</td><td>${cumul['RDV qualifiés']}</td><td>${cumul['Propositions envoyées']}</td>`;
     tbody2.appendChild(tr);
   });
   renderHebdoCharts();

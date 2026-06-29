@@ -3777,147 +3777,395 @@ function exportToExcel() {
 
 
 /* ============================================================
-   CORRECTIF BOUTON COMMERCIAUX
-   Objectif : rendre cliquables les boutons "Retirer des listes"
-   et "Réafficher" même si le tableau est généré dynamiquement.
+   PATCH ARCHIVAGE COMMERCIAUX + REPORTING
+   Objectif :
+   1) Un commercial archivé disparaît des graphiques et de la saisie hebdo.
+   2) Ses anciennes tâches restent visibles mais sont marquées "à réaffecter".
+   3) Le bouton "Retirer des listes" / "Réafficher" fonctionne via délégation de clic.
    ============================================================ */
 
 (function () {
-  if (window.__patchBoutonsCommerciauxActif) return;
-  window.__patchBoutonsCommerciauxActif = true;
+  if (window.__patchArchivageReportingCommerciaux) return;
+  window.__patchArchivageReportingCommerciaux = true;
 
-  async function toggleCommercialDepuisBouton(btn) {
-    const texteBouton = (btn.textContent || '').trim().toLowerCase();
-
-    const demandeRetrait =
-      texteBouton.includes('retirer') ||
-      texteBouton.includes('désactiver') ||
-      texteBouton.includes('desactiver');
-
-    const demandeReaffichage =
-      texteBouton.includes('réafficher') ||
-      texteBouton.includes('reafficher') ||
-      texteBouton.includes('réactiver') ||
-      texteBouton.includes('reactiver');
-
-    const boutonConcerne =
-      demandeRetrait ||
-      demandeReaffichage ||
-      btn.classList.contains('btn-toggle-user') ||
-      btn.classList.contains('btn-toggle-commercial') ||
-      btn.dataset.userId ||
-      btn.dataset.utilisateurId ||
-      btn.dataset.commercialId;
-
-    if (!boutonConcerne) return false;
-
-    const ligne = btn.closest('tr');
-
-    let userId =
-      btn.dataset.userId ||
-      btn.dataset.utilisateurId ||
-      btn.dataset.commercialId ||
-      null;
-
-    if (!userId && ligne) {
-      const cellules = ligne.querySelectorAll('td');
-      const prenom = (cellules[0]?.textContent || '').trim();
-      const nom = (cellules[1]?.textContent || '').trim();
-
-      const tousLesUtilisateurs =
-        state.utilisateursAll ||
-        state.utilisateurs ||
-        [];
-
-      const utilisateurTrouve = tousLesUtilisateurs.find(u =>
-        String(u.prenom || '').trim() === prenom &&
-        String(u.nom || '').trim() === nom
-      );
-
-      if (utilisateurTrouve) {
-        userId = utilisateurTrouve.id;
+  function injectArchivageStyle() {
+    if (document.getElementById('style-archivage-commerciaux')) return;
+    const style = document.createElement('style');
+    style.id = 'style-archivage-commerciaux';
+    style.textContent = `
+      .badge-archive-resp,
+      .resp-archive-badge {
+        display:inline-flex;
+        align-items:center;
+        gap:4px;
+        margin-left:6px;
+        padding:3px 8px;
+        border-radius:999px;
+        background:#FFF3CD;
+        border:1px solid #F4C542;
+        color:#7A5200;
+        font-size:11px;
+        font-weight:700;
+        white-space:nowrap;
       }
-    }
-
-    if (!userId) {
-      console.error('Impossible de trouver l’utilisateur à modifier.');
-      showToast('Erreur : utilisateur introuvable', 'error');
-      return true;
-    }
-
-    const nouvelEtat = demandeReaffichage ? true : false;
-
-    const messageConfirmation = nouvelEtat
-      ? 'Réafficher ce commercial dans les listes ?'
-      : 'Retirer ce commercial des listes ?\n\nSon historique sera conservé.';
-
-    if (!confirm(messageConfirmation)) {
-      return true;
-    }
-
-    const ancienTexte = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = 'Traitement...';
-
-    try {
-      const { error } = await sb
-        .from('utilisateurs')
-        .update({ actif: nouvelEtat })
-        .eq('id', userId);
-
-      if (error) {
-        console.error(error);
-        showToast('Erreur : ' + error.message, 'error');
-        return true;
+      .kanban-card-archive-resp {
+        outline:2px dashed #F4C542;
+        outline-offset:-3px;
+        background:linear-gradient(0deg, rgba(255,243,205,.45), rgba(255,243,205,.45)), #fff;
       }
-
-      showToast(
-        nouvelEtat
-          ? 'Commercial réaffiché dans les listes'
-          : 'Commercial retiré des listes',
-        'success'
-      );
-
-      await loadData();
-
-      if (typeof renderParametres === 'function') {
-        renderParametres();
-      } else if (typeof renderAll === 'function') {
-        renderAll();
+      .ticket-archive-resp {
+        background:#FFFDF4;
       }
-
-      if (typeof renderHebdo === 'function') {
-        renderHebdo();
+      .ticket-archive-resp td:first-child {
+        border-left:4px solid #F4C542;
       }
-
-      if (typeof renderDashboard === 'function') {
-        renderDashboard();
+      .row-muted,
+      .commercial-archive-row {
+        opacity:.72;
+        background:#FAFAF8;
       }
-
-    } catch (err) {
-      console.error(err);
-      showToast('Erreur inattendue : ' + err.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = ancienTexte;
-    }
-
-    return true;
+    `;
+    document.head.appendChild(style);
   }
 
-  document.addEventListener('click', async function (e) {
-    const btn = e.target.closest('button, a, [role="button"]');
+  function tousLesUtilisateurs() {
+    const tous = Array.isArray(state.utilisateursAll) && state.utilisateursAll.length
+      ? state.utilisateursAll
+      : (Array.isArray(state.utilisateurs) ? state.utilisateurs : []);
+    return tous.filter(u => u && u.id !== undefined && u.id !== null);
+  }
+
+  function utilisateursActifs() {
+    return tousLesUtilisateurs().filter(u => u.actif !== false);
+  }
+
+  function normaliserUtilisateurs() {
+    if (!Array.isArray(state.utilisateursAll) || state.utilisateursAll.length === 0) {
+      state.utilisateursAll = Array.isArray(state.utilisateurs) ? [...state.utilisateurs] : [];
+    }
+    state.utilisateurs = utilisateursActifs();
+  }
+
+  function utilisateurParId(id) {
+    if (id === undefined || id === null || id === '') return null;
+    return tousLesUtilisateurs().find(u => String(u.id) === String(id)) || null;
+  }
+
+  function nomUtilisateur(id) {
+    const u = utilisateurParId(id);
+    if (!u) return '—';
+    return (`${u.prenom || ''} ${u.nom || ''}`).trim() || u.email || 'Utilisateur';
+  }
+
+  function commercialArchive(id) {
+    const u = utilisateurParId(id);
+    return !!u && u.actif === false;
+  }
+
+  function nomUtilisateurAvecStatut(id) {
+    const base = nomUtilisateur(id);
+    if (base === '—') return base;
+    return commercialArchive(id) ? `${base} (archivé)` : base;
+  }
+
+  // Remplacement des helpers globaux utilisés par le reste de l'application.
+  try { getUtilisateurById = utilisateurParId; } catch(e) {}
+  try { getNomUtilisateur = nomUtilisateur; } catch(e) {}
+  try { getNomUtilisateurAvecStatut = nomUtilisateurAvecStatut; } catch(e) {}
+  try { getUtilisateursActifs = utilisateursActifs; } catch(e) {}
+
+  try {
+    getUtilisateursPourSelect = function(selectedId = null) {
+      const users = utilisateursActifs();
+      const selected = selectedId ? String(selectedId) : null;
+      if (selected) {
+        const oldUser = utilisateurParId(selected);
+        if (oldUser && !users.some(u => String(u.id) === String(oldUser.id))) users.push(oldUser);
+      }
+      return users.sort((a, b) => (`${a.prenom || ''} ${a.nom || ''}`).localeCompare(`${b.prenom || ''} ${b.nom || ''}`));
+    };
+  } catch(e) {}
+
+  try {
+    getUtilisateursAvecActiviteHebdo = function() {
+      // Important : la saisie hebdo et les graphiques hebdo doivent afficher uniquement les commerciaux disponibles.
+      return utilisateursActifs().sort((a, b) => (`${a.prenom || ''} ${a.nom || ''}`).localeCompare(`${b.prenom || ''} ${b.nom || ''}`));
+    };
+  } catch(e) {}
+
+  // Normaliser aussi après chaque loadData.
+  if (typeof loadData === 'function' && !loadData.__patchArchivageReporting) {
+    const oldLoadData = loadData;
+    loadData = async function(...args) {
+      const res = await oldLoadData.apply(this, args);
+      normaliserUtilisateurs();
+      return res;
+    };
+    loadData.__patchArchivageReporting = true;
+  }
+
+  // Bouton Paramètres > Commerciaux : retrait/réaffichage fiable.
+  async function toggleCommercial(userId, nouvelEtat) {
+    const u = utilisateurParId(userId);
+    if (!u) {
+      showToast('Erreur : commercial introuvable', 'error');
+      return;
+    }
+
+    const nom = nomUtilisateur(userId);
+    const message = nouvelEtat
+      ? `Réafficher ${nom} dans les listes de saisie ?`
+      : `Retirer ${nom} des nouvelles listes de saisie ?\n\nSes anciennes tâches et son historique resteront visibles. Les tâches concernées seront marquées comme à réaffecter.`;
+
+    if (!confirm(message)) return;
+
+    const { error } = await sb
+      .from('utilisateurs')
+      .update({ actif: nouvelEtat })
+      .eq('id', userId);
+
+    if (error) {
+      console.error(error);
+      showToast('Erreur : ' + error.message, 'error');
+      return;
+    }
+
+    showToast(nouvelEtat ? 'Commercial réaffiché' : 'Commercial retiré des listes', 'success');
+    await loadData();
+    normaliserUtilisateurs();
+    if (typeof renderAll === 'function') renderAll();
+    if (typeof renderDashboardCharts === 'function') setTimeout(renderDashboardCharts, 50);
+  }
+
+  window.toggleUtilisateurActifDepuisBouton = async function(userId, actif) {
+    await toggleCommercial(userId, actif === true || actif === 'true');
+  };
+
+  document.addEventListener('click', async function(e) {
+    const btn = e.target.closest('button');
     if (!btn) return;
 
-    const actionTraitee = await toggleCommercialDepuisBouton(btn);
+    const hasData = btn.dataset.toggleUserActive || btn.dataset.userId || btn.dataset.utilisateurId || btn.dataset.commercialId;
+    const label = (btn.textContent || '').trim().toLowerCase();
+    const isCommercialButton =
+      hasData ||
+      label.includes('retirer des listes') ||
+      label.includes('réafficher') ||
+      label.includes('reafficher');
 
-    if (actionTraitee) {
-      e.preventDefault();
-      e.stopPropagation();
+    if (!isCommercialButton) return;
+
+    const ligne = btn.closest('tr');
+    let userId = btn.dataset.toggleUserActive || btn.dataset.userId || btn.dataset.utilisateurId || btn.dataset.commercialId || null;
+
+    if (!userId && ligne) {
+      const tds = ligne.querySelectorAll('td');
+      const prenom = (tds[0]?.textContent || '').trim();
+      const nom = (tds[1]?.textContent || '').trim();
+      const found = tousLesUtilisateurs().find(u => String(u.prenom || '').trim() === prenom && String(u.nom || '').trim() === nom);
+      if (found) userId = found.id;
     }
+
+    if (!userId) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const nouvelEtat = btn.dataset.nextActive
+      ? btn.dataset.nextActive === 'true'
+      : (label.includes('réafficher') || label.includes('reafficher'));
+
+    await toggleCommercial(userId, nouvelEtat);
   }, true);
 
-  console.log('Correctif boutons commerciaux chargé.');
+  // Saisie hebdo : seulement les commerciaux disponibles, plus de lignes "—".
+  if (typeof renderHebdo === 'function') {
+    renderHebdo = function() {
+      normaliserUtilisateurs();
+      const tbody = document.querySelector('#hebdo-table tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      const usersHebdo = utilisateursActifs();
+      if (usersHebdo.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Aucun commercial disponible.</td></tr>';
+        return;
+      }
+
+      usersHebdo.forEach(u => {
+        const tr = document.createElement('tr');
+        let total = 0;
+        let html = `<td><strong>${nomUtilisateur(u.id)}</strong></td>`;
+
+        ACTIVITES.forEach(act => {
+          const rec = (state.suivi || []).find(s => String(s.utilisateur_id) === String(u.id) && s.annee === state.hebdo_annee && s.semaine === state.hebdo_semaine && s.type_activite === act);
+          const val = rec?.nombre ?? 0;
+          total += val;
+          html += `<td><input type="number" class="hebdo-input" data-user="${u.id}" data-activite="${act}" value="${val}" min="0" style="width:80px;padding:6px 8px;border:1px solid #D3D1C7;border-radius:4px;"></td>`;
+        });
+
+        html += `<td><strong>${total}</strong></td>`;
+        tr.innerHTML = html;
+        tbody.appendChild(tr);
+      });
+
+      tbody.querySelectorAll('.hebdo-input').forEach(input => {
+        input.addEventListener('change', async () => {
+          const userId = input.dataset.user;
+          const activite = input.dataset.activite;
+          const nombre = parseInt(input.value) || 0;
+          const existing = (state.suivi || []).find(s => String(s.utilisateur_id) === String(userId) && s.annee === state.hebdo_annee && s.semaine === state.hebdo_semaine && s.type_activite === activite);
+          if (existing) await sb.from('suivi_hebdo').update({ nombre, updated_at: new Date().toISOString() }).eq('id', existing.id);
+          else await sb.from('suivi_hebdo').insert([{ utilisateur_id: userId, annee: state.hebdo_annee, semaine: state.hebdo_semaine, type_activite: activite, nombre }]);
+          await loadData();
+          renderHebdo();
+          if (typeof renderDashboard === 'function') renderDashboard();
+          if (typeof renderDashboardCharts === 'function') renderDashboardCharts();
+          showToast('Enregistré', 'success');
+        });
+      });
+
+      if (typeof renderTachesT0T1 === 'function') renderTachesT0T1();
+
+      const tbody2 = document.querySelector('#hebdo-recap-table tbody');
+      if (tbody2) {
+        tbody2.innerHTML = '';
+        const startWeek = Math.max(1, state.hebdo_semaine - 3);
+        utilisateursActifs().forEach(u => {
+          const cumul = {};
+          ACTIVITES.forEach(act => {
+            cumul[act] = (state.suivi || []).filter(s => String(s.utilisateur_id) === String(u.id) && s.annee === state.hebdo_annee && s.semaine >= startWeek && s.semaine <= state.hebdo_semaine && s.type_activite === act).reduce((sum, s) => sum + (s.nombre || 0), 0);
+          });
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td><strong>${nomUtilisateur(u.id)}</strong></td><td>${cumul['Appels / Contacts'] || 0}</td><td>${cumul['RDV planifiés'] || 0}</td><td>${cumul['RDV qualifiés'] || 0}</td><td>${cumul['Propositions envoyées'] || 0}</td>`;
+          tbody2.appendChild(tr);
+        });
+      }
+
+      if (typeof renderHebdoCharts === 'function') renderHebdoCharts();
+      if (typeof renderTicketsFiltres === 'function') renderTicketsFiltres();
+    };
+  }
+
+  // Graphique hebdo comparatif : seulement les commerciaux disponibles.
+  if (typeof renderHebdoCharts === 'function') {
+    const oldRenderHebdoCharts = renderHebdoCharts;
+    renderHebdoCharts = function() {
+      oldRenderHebdoCharts();
+      if (typeof Chart === 'undefined') return;
+      if (state.charts.comparComm) { state.charts.comparComm.destroy(); delete state.charts.comparComm; }
+      const ctx3 = document.getElementById('chart-compar-comm');
+      if (!ctx3) return;
+      const users = utilisateursActifs();
+      const labels = users.map(u => nomUtilisateur(u.id));
+      const rdvAll = users.map(u => (state.suivi || []).filter(s => String(s.utilisateur_id) === String(u.id) && s.annee === state.hebdo_annee && s.type_activite === 'RDV qualifiés').reduce((sum,s) => sum + (s.nombre||0), 0));
+      const propAll = users.map(u => (state.suivi || []).filter(s => String(s.utilisateur_id) === String(u.id) && s.annee === state.hebdo_annee && s.type_activite === 'Propositions envoyées').reduce((sum,s) => sum + (s.nombre||0), 0));
+      const appAll = users.map(u => (state.suivi || []).filter(s => String(s.utilisateur_id) === String(u.id) && s.annee === state.hebdo_annee && s.type_activite === 'Appels / Contacts').reduce((sum,s) => sum + (s.nombre||0), 0));
+      state.charts.comparComm = new Chart(ctx3, {
+        type: 'bar',
+        data: { labels, datasets: [
+          { label: 'Appels / Contacts', data: appAll, backgroundColor: '#85B7EB', borderRadius: 4 },
+          { label: 'RDV qualifiés', data: rdvAll, backgroundColor: '#1F3864', borderRadius: 4 },
+          { label: 'Offres envoyées', data: propAll, backgroundColor: '#5DCAA5', borderRadius: 4 }
+        ]},
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+      });
+    };
+  }
+
+  // Cartes kanban : les anciennes tâches d'un commercial archivé restent visibles et identifiables.
+  if (typeof renderKanbanCard === 'function' && !renderKanbanCard.__patchArchiveResp) {
+    const oldRenderKanbanCard = renderKanbanCard;
+    renderKanbanCard = function(c, col, body) {
+      oldRenderKanbanCard(c, col, body);
+      const card = body?.lastElementChild;
+      if (!card || !commercialArchive(c.responsable_id)) return;
+      card.classList.add('kanban-card-archive-resp');
+      const meta = card.querySelector('.kanban-card-meta') || card;
+      if (!card.querySelector('.resp-archive-badge')) {
+        meta.insertAdjacentHTML('beforeend', '<span class="resp-archive-badge">⚠️ Responsable archivé · à réaffecter</span>');
+      }
+    };
+    renderKanbanCard.__patchArchiveResp = true;
+  }
+
+  // Tableau de tickets : badge clair pour les tâches affectées à un commercial archivé.
+  if (typeof renderTicketsFiltres === 'function') {
+    renderTicketsFiltres = function(filtre) {
+      filtre = filtre || 'retard';
+      const tbody = document.querySelector('#hebdo-tickets-filtre-table tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      const cibles = typeof getCiblesProduitActif === 'function' ? getCiblesProduitActif() : (state.cibles || []);
+      let filtered;
+      if (filtre === 'retard') filtered = cibles.filter(c => !c.est_terminee && isTacheEnRetard(c));
+      else if (filtre === 'ouvertes') filtered = cibles.filter(c => !c.est_terminee);
+      else if (filtre === 'fermees') filtered = cibles.filter(c => c.est_terminee);
+      else filtered = cibles;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty">${filtre === 'retard' ? 'Aucune tâche en retard 👍' : 'Aucune tâche'}</td></tr>`;
+        return;
+      }
+
+      filtered.sort((a, b) => (a.date_echeance || '9999') < (b.date_echeance || '9999') ? -1 : 1);
+      filtered.forEach(c => {
+        const resp = utilisateurParId(c.responsable_id);
+        const respArchive = commercialArchive(c.responsable_id);
+        const col = COLONNES_V8.find(co => co.numero === getColonneCible(c));
+        const retard = isTacheEnRetard(c);
+        const tr = document.createElement('tr');
+        if (retard) tr.className = 'row-retard';
+        if (c.est_terminee) tr.className = 'row-done';
+        if (respArchive) tr.classList.add('ticket-archive-resp');
+        tr.innerHTML = `<td>${c.description_action || c.intitule || '—'}</td>
+          <td>${resp ? nomUtilisateur(resp.id) : '—'} ${respArchive ? '<span class="badge-archive-resp">À réaffecter</span>' : ''}</td>
+          <td><span class="col-badge" style="border-left:3px solid ${col?.couleur||'#ccc'};padding-left:6px;">${col?.libelle || '—'}</span></td>
+          <td>${c.date_echeance ? new Date(c.date_echeance).toLocaleDateString('fr-FR') : '—'}</td>
+          <td>${c.est_terminee ? '✅ Terminée' : (retard ? '⚠️ En retard' : (c.statut_avancement || '📂 Ouverte'))}</td>
+          <td>${c.montant_estime ? formatEuro(c.montant_estime) + ' €' : '—'}</td>`;
+        tr.title = respArchive ? 'Cliquer pour ouvrir la tâche et changer le responsable' : 'Cliquer pour ouvrir la tâche';
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', () => openModalCible(c));
+        tbody.appendChild(tr);
+      });
+
+      document.querySelectorAll('.btn-filter-ticket').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.ticketFilter === filtre);
+      });
+    };
+  }
+
+  // Tableau T0/T+1 : même logique d'identification.
+  if (typeof renderTachesT0T1 === 'function') {
+    const oldRenderTachesT0T1 = renderTachesT0T1;
+    renderTachesT0T1 = function() {
+      oldRenderTachesT0T1();
+      const tbody = document.querySelector('#hebdo-taches-table tbody');
+      if (!tbody) return;
+      tbody.querySelectorAll('tr').forEach(tr => {
+        const nomCell = tr.children?.[1];
+        if (!nomCell) return;
+        const texte = (nomCell.textContent || '').trim();
+        const u = tousLesUtilisateurs().find(x => nomUtilisateur(x.id) === texte);
+        if (u && u.actif === false && !nomCell.querySelector('.badge-archive-resp')) {
+          tr.classList.add('ticket-archive-resp');
+          nomCell.insertAdjacentHTML('beforeend', '<span class="badge-archive-resp">À réaffecter</span>');
+        }
+      });
+    };
+  }
+
+  // Démarrage immédiat si le patch est collé après init().
+  injectArchivageStyle();
+  normaliserUtilisateurs();
+  setTimeout(() => {
+    normaliserUtilisateurs();
+    if (typeof renderAll === 'function') renderAll();
+    if (typeof renderDashboardCharts === 'function') renderDashboardCharts();
+    console.log('Patch archivage commerciaux/reporting chargé.');
+  }, 300);
 })();
+
 
 init();

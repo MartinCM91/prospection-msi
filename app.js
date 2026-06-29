@@ -1,3 +1,6 @@
+// CORRECTIF BOUTON COMMERCIAUX - version copier-coller TXT
+// À coller intégralement dans GitHub à la place de app.js
+
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -1780,15 +1783,25 @@ function renderParametres() {
           <td>Conservé</td>
           <td><span class="badge ${isActive ? 'badge-success' : 'badge-secondary'}">${isActive ? 'Disponible' : 'Archivé'}</span></td>
           <td>
-            <button type="button" class="${isActive ? 'btn-danger' : 'btn-primary'} btn-sm" data-toggle-user-active="${u.id}" data-next-active="${isActive ? 'false' : 'true'}" title="Cette action conserve tout l'historique">
+            <button
+              type="button"
+              class="${isActive ? 'btn-danger' : 'btn-primary'} btn-sm"
+              data-toggle-user-active="${u.id}"
+              data-next-active="${isActive ? 'false' : 'true'}"
+              onclick="toggleUtilisateurActifDepuisBouton(${u.id}, ${isActive ? 'false' : 'true'})"
+              title="Cette action conserve tout l'historique"
+            >
               ${isActive ? 'Retirer des listes' : 'Réafficher'}
             </button>
           </td>`;
         tbodyU.appendChild(tr);
       });
 
+      // Sécurité : écouteur JS classique + onclick inline.
+      // L'onclick inline sert de secours si le tableau est rechargé dynamiquement.
       tbodyU.querySelectorAll('[data-toggle-user-active]').forEach(btn => {
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
           const userId = parseInt(btn.dataset.toggleUserActive);
           const nextActive = btn.dataset.nextActive === 'true';
           await toggleUtilisateurActif(userId, nextActive);
@@ -1821,6 +1834,12 @@ Important : son historique, ses anciens événements, ses tâches et son suivi r
   await loadData();
   renderAll();
 }
+
+// Fonction globale appelée par le bouton dans le tableau Paramètres > Commerciaux.
+// Elle rend le clic fiable même si le tableau est reconstruit par innerHTML.
+window.toggleUtilisateurActifDepuisBouton = async function(userId, actif) {
+  await toggleUtilisateurActif(Number(userId), actif === true || actif === 'true');
+};
 // ============================================================
 // RENDUS
 // ============================================================

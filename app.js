@@ -1018,19 +1018,29 @@ function removeResultatTag(libelle) {
 }
 
 function renderResultatsTags() {
-  const container = document.getElementById('resultats-attendus-list');
-  container.innerHTML = '';
-  if (state.tempResultats.length === 0) {
-    container.innerHTML = '<span class="hint">Aucun résultat ajouté</span>';
+  const container =
+    document.getElementById('resultats-tags') ||
+    document.getElementById('resultatsTags') ||
+    document.getElementById('cible-resultats-tags') ||
+    document.getElementById('modal-resultats-tags');
+
+  if (!container) {
+    console.warn("Zone des résultats attendus introuvable dans app.html. renderResultatsTags ignoré.");
     return;
   }
-  state.tempResultats.forEach(r => {
-    const tag = document.createElement('span');
-    tag.className = 'resultat-tag';
-    tag.innerHTML = `${r}<span class="resultat-tag-delete">✕</span>`;
-    tag.querySelector('.resultat-tag-delete').addEventListener('click', () => removeResultatTag(r));
-    container.appendChild(tag);
-  });
+
+  container.innerHTML = '';
+
+  if (!window.resultatsAttendus || window.resultatsAttendus.length === 0) {
+    container.innerHTML = '<p class="empty-text">Aucun résultat attendu paramétré.</p>';
+    return;
+  }
+
+  container.innerHTML = window.resultatsAttendus.map(resultat => `
+    <span class="tag-resultat">
+      ${resultat.libelle || resultat.nom || resultat.titre || 'Résultat'}
+    </span>
+  `).join('');
 }
 
 document.addEventListener('change', e => {

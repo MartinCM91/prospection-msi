@@ -1382,12 +1382,21 @@ function getChecklistSourceId(sourceId) {
   const source = state.sources.find(s => s.id === srcId);
   if (!source) return null;
 
-  // Priorité 1 : checklist directement rattachée à la source sélectionnée
+  // Nouvelle logique durable : la checklist est pilotée par la source elle-même.
+  // checklist_active = true  => afficher l'icône et ouvrir la checklist de cette source, même vide.
+  // checklist_active = false => ne pas afficher l'icône, même si des anciennes actions existent.
+  // undefined               => compatibilité avec les anciennes données.
+  if (source.checklist_active === true) return source.id;
+  if (source.checklist_active === false) return null;
+
+  // Compatibilité anciennes versions : si la colonne n'existe pas encore dans le cache,
+  // on garde l'ancien comportement basé sur les actions déjà présentes.
   const hasOwnChecklist = state.checklist.some(item => item.source_id === source.id);
   if (hasOwnChecklist) return source.id;
 
-  // Priorité 2 : checklist du parent, utile pour LinkedIn / salons / sources enfants
   if (source.parent_id) {
+    const parent = state.sources.find(s => s.id === source.parent_id);
+    if (parent?.checklist_active === true) return parent.id;
     const hasParentChecklist = state.checklist.some(item => item.source_id === source.parent_id);
     if (hasParentChecklist) return source.parent_id;
   }
@@ -1402,7 +1411,7 @@ function hasChecklistForSource(sourceId) {
 function openChecklistForSource(sourceId) {
   const checklistSourceId = getChecklistSourceId(sourceId);
   if (!checklistSourceId) {
-    showToast('Aucune checklist renseignée pour cette source.', 'info');
+    showToast('Checklist désactivée pour cette source. Modifiez la source pour l’activer.', 'info');
     return;
   }
   openChecklistModal(checklistSourceId);
@@ -1483,11 +1492,47 @@ async function deleteChecklistItem() {
 // ============================================================
 // SOURCES (création depuis calendrier)
 // ============================================================
+function ensureSourceChecklistToggle() {
+  const form = document.getElementById('source-form');
+  if (!form || document.getElementById('source-checklist-active')) return;
+
+  const deleteBtn = document.getElementById('btn-delete-source');
+  const wrapper = document.createElement('div');
+  wrapper.className = 'form-row';
+  wrapper.innerHTML = `
+    <label class="checkbox-line" style="display:flex;gap:10px;align-items:flex-start;margin:10px 0;padding:12px;border:1px solid #E5E3DC;border-radius:10px;background:#FAFAF8;">
+      <input type="checkbox" id="source-checklist-active" style="margin-top:3px;">
+      <span>
+        <strong>Activer une checklist pour cette source</strong><br>
+        <small style="color:#6B6860;">Si activé, l’icône 📋 apparaîtra dans le calendrier et la checklist pourra être remplie. Si désactivé, l’icône disparaît mais les anciennes actions restent conservées.</small>
+      </span>
+    </label>
+  `;
+
+  if (deleteBtn && deleteBtn.parentNode) {
+    deleteBtn.parentNode.insertBefore(wrapper, deleteBtn);
+  } else {
+    form.appendChild(wrapper);
+  }
+}
+
+function sourceHasChecklistItems(sourceId) {
+  const id = parseInt(sourceId);
+  return !!id && state.checklist.some(item => item.source_id === id);
+}
+
 function openModalSource(prefill = {}) {
   document.getElementById('source-form').reset();
+  ensureSourceChecklistToggle();
   document.getElementById('source-id').value = prefill.id || '';
   document.getElementById('modal-source-title').textContent = prefill.id ? 'Modifier source' : 'Nouvelle source';
   document.getElementById('btn-delete-source').classList.toggle('hidden', !prefill.id);
+  const checklistToggle = document.getElementById('source-checklist-active');
+  if (checklistToggle) {
+    checklistToggle.checked = prefill.id
+      ? (prefill.checklist_active === true || (prefill.checklist_active === undefined && sourceHasChecklistItems(prefill.id)))
+      : false;
+  }
   const parentSel = document.getElementById('source-parent');
   parentSel.innerHTML = '<option value="">— Aucun parent (source principale)</option>';
   state.sources.filter(s => !s.parent_id && s.id !== prefill.id).forEach(s => {
@@ -1512,11 +1557,32 @@ async function saveSource(e) {
     groupe: document.getElementById('source-groupe').value,
     categorie: document.getElementById('source-categorie').value || null,
     parent_id: parseInt(document.getElementById('source-parent').value) || null,
+    checklist_active: document.getElementById('source-checklist-active')?.checked || false,
     ordre_affichage: 100
   };
-  const { error } = id ? await sb.from('sources').update(data).eq('id', id) : await sb.from('sources').insert([data]);
-  if (error) showToast('Erreur : ' + error.message, 'error');
-  else { showToast(id ? 'Source modifiée' : 'Source créée', 'success'); closeM('modal-source'); await loadData(); renderCalendar(); }
+  const { data: savedSource, error } = id
+    ? await sb.from('sources').update(data).eq('id', id).select()
+    : await sb.from('sources').insert([data]).select();
+  if (error) {
+    showToast('Erreur : ' + error.message, 'error');
+    return;
+  }
+
+  const newSourceId = id || savedSource?.[0]?.id;
+  const messageChecklist = data.checklist_active
+    ? ' — checklist activée'
+    : ' — checklist désactivée';
+
+  showToast((id ? 'Source modifiée' : 'Source créée') + messageChecklist, 'success');
+  closeM('modal-source');
+  await loadData();
+  renderCalendar();
+
+  // Si l’utilisateur coche “Activer une checklist” sur une nouvelle source,
+  // on ouvre directement la checklist vide pour pouvoir ajouter les actions.
+  if (!id && data.checklist_active && newSourceId) {
+    openChecklistModal(parseInt(newSourceId));
+  }
 }
 
 async function deleteSource() {

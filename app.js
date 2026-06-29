@@ -3775,4 +3775,149 @@ function exportToExcel() {
   showToast(`Export "${filename}" généré avec 12 onglets`, 'success');
 }
 
+
+/* ============================================================
+   CORRECTIF BOUTON COMMERCIAUX
+   Objectif : rendre cliquables les boutons "Retirer des listes"
+   et "Réafficher" même si le tableau est généré dynamiquement.
+   ============================================================ */
+
+(function () {
+  if (window.__patchBoutonsCommerciauxActif) return;
+  window.__patchBoutonsCommerciauxActif = true;
+
+  async function toggleCommercialDepuisBouton(btn) {
+    const texteBouton = (btn.textContent || '').trim().toLowerCase();
+
+    const demandeRetrait =
+      texteBouton.includes('retirer') ||
+      texteBouton.includes('désactiver') ||
+      texteBouton.includes('desactiver');
+
+    const demandeReaffichage =
+      texteBouton.includes('réafficher') ||
+      texteBouton.includes('reafficher') ||
+      texteBouton.includes('réactiver') ||
+      texteBouton.includes('reactiver');
+
+    const boutonConcerne =
+      demandeRetrait ||
+      demandeReaffichage ||
+      btn.classList.contains('btn-toggle-user') ||
+      btn.classList.contains('btn-toggle-commercial') ||
+      btn.dataset.userId ||
+      btn.dataset.utilisateurId ||
+      btn.dataset.commercialId;
+
+    if (!boutonConcerne) return false;
+
+    const ligne = btn.closest('tr');
+
+    let userId =
+      btn.dataset.userId ||
+      btn.dataset.utilisateurId ||
+      btn.dataset.commercialId ||
+      null;
+
+    if (!userId && ligne) {
+      const cellules = ligne.querySelectorAll('td');
+      const prenom = (cellules[0]?.textContent || '').trim();
+      const nom = (cellules[1]?.textContent || '').trim();
+
+      const tousLesUtilisateurs =
+        state.utilisateursAll ||
+        state.utilisateurs ||
+        [];
+
+      const utilisateurTrouve = tousLesUtilisateurs.find(u =>
+        String(u.prenom || '').trim() === prenom &&
+        String(u.nom || '').trim() === nom
+      );
+
+      if (utilisateurTrouve) {
+        userId = utilisateurTrouve.id;
+      }
+    }
+
+    if (!userId) {
+      console.error('Impossible de trouver l’utilisateur à modifier.');
+      showToast('Erreur : utilisateur introuvable', 'error');
+      return true;
+    }
+
+    const nouvelEtat = demandeReaffichage ? true : false;
+
+    const messageConfirmation = nouvelEtat
+      ? 'Réafficher ce commercial dans les listes ?'
+      : 'Retirer ce commercial des listes ?\n\nSon historique sera conservé.';
+
+    if (!confirm(messageConfirmation)) {
+      return true;
+    }
+
+    const ancienTexte = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Traitement...';
+
+    try {
+      const { error } = await sb
+        .from('utilisateurs')
+        .update({ actif: nouvelEtat })
+        .eq('id', userId);
+
+      if (error) {
+        console.error(error);
+        showToast('Erreur : ' + error.message, 'error');
+        return true;
+      }
+
+      showToast(
+        nouvelEtat
+          ? 'Commercial réaffiché dans les listes'
+          : 'Commercial retiré des listes',
+        'success'
+      );
+
+      await loadData();
+
+      if (typeof renderParametres === 'function') {
+        renderParametres();
+      } else if (typeof renderAll === 'function') {
+        renderAll();
+      }
+
+      if (typeof renderHebdo === 'function') {
+        renderHebdo();
+      }
+
+      if (typeof renderDashboard === 'function') {
+        renderDashboard();
+      }
+
+    } catch (err) {
+      console.error(err);
+      showToast('Erreur inattendue : ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = ancienTexte;
+    }
+
+    return true;
+  }
+
+  document.addEventListener('click', async function (e) {
+    const btn = e.target.closest('button, a, [role="button"]');
+    if (!btn) return;
+
+    const actionTraitee = await toggleCommercialDepuisBouton(btn);
+
+    if (actionTraitee) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
+
+  console.log('Correctif boutons commerciaux chargé.');
+})();
+
 init();

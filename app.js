@@ -34,6 +34,8 @@ const KPI_TYPES = [
   { code: 'offres_perdues',    label: 'Offres perdues' }
 ];
 
+// Ancienne liste conservée pour compatibilité.
+// L'affichage du calendrier utilise désormais les vraies checklists en base.
 const SOURCES_AVEC_CHECKLIST = [
   'Réseau pro','Alumnis','Salons','Meeting-Ingé','JPO','Webinaires',
   'Anciens clients','Maîtres de stage','Maîtres d\'apprentissage','Événements'
@@ -42,7 +44,7 @@ const SOURCES_AVEC_CHECKLIST = [
 let state = {
   user: null,
   produits: [], produitActif: null,
-  sources: [], utilisateurs: [], objectifs: [], evenements: [], suivi: [],
+  sources: [], utilisateurs: [], utilisateursAll: [], objectifs: [], evenements: [], suivi: [],
   objectifsAnnuels: [], cibles: [], domaines: [], resultatsAttendus: [],
   checklist: [], evtObjectifs: [], kpiObjectifs: [],
   jalons: [], cibleResultats: [],
@@ -127,7 +129,8 @@ async function loadData() {
   ]);
   state.produits = results[0].data || [];
   state.sources = results[1].data || [];
-  state.utilisateurs = results[2].data || [];
+  state.utilisateursAll = results[2].data || [];
+  state.utilisateurs = state.utilisateursAll.filter(u => u.actif !== false);
   state.objectifs = results[3].data || [];
   state.evenements = results[4].data || [];
   state.suivi = results[5].data || [];
@@ -146,6 +149,21 @@ async function loadData() {
 }
 
 function formatEuro(n) { return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n || 0); }
+
+function getUtilisateurById(id) {
+  if (!id) return null;
+  const numericId = Number(id);
+  return (state.utilisateursAll || []).find(u => u.id === numericId) ||
+         (state.utilisateurs || []).find(u => u.id === numericId) ||
+         null;
+}
+
+function getNomUtilisateur(id) {
+  const u = getUtilisateurById(id);
+  if (!u) return '—';
+  const nomComplet = `${u.prenom || ''} ${u.nom || ''}`.trim();
+  return nomComplet || u.email || 'Utilisateur';
+}
 
 // Parse un montant saisi en français (virgule ou point accepté)
 function parseDecimal(val) {
@@ -506,7 +524,7 @@ function setupAllModals() {
   document.getElementById('btn-delete').addEventListener('click', deleteEvent);
   document.getElementById('btn-voir-checklist').addEventListener('click', () => {
     const srcId = parseInt(document.getElementById('event-source').value);
-    if (srcId) openChecklistModal(srcId);
+    if (srcId) openChecklistForSource(srcId);
   });
   document.getElementById('btn-add-objectif-evt').addEventListener('click', () => {
     const evtId = document.getElementById('event-id').value;
@@ -607,25 +625,11 @@ function openModalCible(prefill = {}) {
   }
   domSel.value = currentCol;
 
-  domSel.addEventListener('change', () => updateColonneSections(parseInt(domSel.value)));
-
-  const respSel = document.getElementById('cible-responsable');
-  respSel.innerHTML = '<option value="">—</option>';
-  state.utilisateurs.forEach(u => {
-    const o = document.createElement('option');
-    o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
-    if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) o.selected = true;
-    respSel.appendChild(o);
-  });
-
-  const srcSel = document.getElementById('cible-source');
-  srcSel.innerHTML = '<option value="">—</option>';
-  state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
-    const o = document.createElement('option');
-    o.value = s.id; o.textContent = (s.parent_id ? '  └ ' : '') + s.nom;
-    if (prefill.source_id === s.id) o.selected = true;
-    srcSel.appendChild(o);
-  });
+  domSel.onchange = () => {
+    const col = parseInt(domSel.value);
+    updateColonneSections(col);
+    updateResultatsSelect(col);
+  };
 
   // Résultats attendus
   state.tempResultats = [];
@@ -635,6 +639,7 @@ function openModalCible(prefill = {}) {
     if (existingResultats.length === 0 && prefill.resultat_attendu) state.tempResultats.push(prefill.resultat_attendu);
   }
   renderResultatsTags();
+  updateResultatsSelect(currentCol);
   const resultatsSection = document.getElementById('resultats-attendus-section');
   if (resultatsSection) resultatsSection.style.display = state.tempResultats.length > 0 ? 'block' : 'none';
 
@@ -969,52 +974,58 @@ async function savePaiementsPhases(cibleId) {
   }
 }
 
-  const respSel = document.getElementById('cible-responsable');
-  respSel.innerHTML = '<option value="">—</option>';
-  state.utilisateurs.forEach(u => {
-    const o = document.createElement('option');
-    o.value = u.id; o.textContent = (u.prenom||'')+' '+(u.nom||'');
-    if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) o.selected = true;
-    respSel.appendChild(o);
-  });
+function escapeHTML(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
-  const srcSel = document.getElementById('cible-source');
-  srcSel.innerHTML = '<option value="">—</option>';
-  state.sources.filter(s => s.groupe !== 'OUTIL').forEach(s => {
-    const o = document.createElement('option');
-    o.value = s.id; o.textContent = (s.parent_id ? '  └ ' : '') + s.nom;
-    if (prefill.source_id === s.id) o.selected = true;
-    srcSel.appendChild(o);
-  });
+function getDomaineIdFromCol(colNum) {
+  const col = parseInt(colNum);
+  const dom = state.domaines.find(d => d.numero === col);
+  return dom ? dom.id : col;
+}
 
-function updateResultatsSelect(domId) {
+function updateResultatsSelect(colNum) {
   const sel = document.getElementById('cible-resultat-select');
+  if (!sel) return;
+
+  const domaineId = getDomaineIdFromCol(colNum);
   sel.innerHTML = '<option value="">— Choisir dans la liste —</option>';
-  state.resultatsAttendus.filter(r => r.domaine_id === domId).forEach(r => {
-    if (!state.tempResultats.includes(r.libelle)) {
-      const o = document.createElement('option');
-      o.value = r.libelle; o.textContent = r.libelle;
-      sel.appendChild(o);
-    }
-  });
+
+  (state.resultatsAttendus || [])
+    .filter(r => !domaineId || r.domaine_id === domaineId)
+    .forEach(r => {
+      if (!state.tempResultats.includes(r.libelle)) {
+        const o = document.createElement('option');
+        o.value = r.libelle;
+        o.textContent = r.libelle;
+        sel.appendChild(o);
+      }
+    });
 }
 
 function addResultatTag(libelle) {
-  if (state.tempResultats.includes(libelle)) return;
+  if (!libelle || state.tempResultats.includes(libelle)) return;
   state.tempResultats.push(libelle);
   renderResultatsTags();
-  // Garder la section visible
+
   const sec = document.getElementById('resultats-attendus-section');
   if (sec) sec.style.display = 'block';
-  const domId = parseInt(document.getElementById('cible-domaine').value);
-  if (domId) updateResultatsSelect(domId);
+
+  const colNum = parseInt(document.getElementById('cible-domaine')?.value);
+  if (colNum) updateResultatsSelect(colNum);
 }
 
 function removeResultatTag(libelle) {
   state.tempResultats = state.tempResultats.filter(r => r !== libelle);
   renderResultatsTags();
-  const domId = parseInt(document.getElementById('cible-domaine').value);
-  if (domId) updateResultatsSelect(domId);
+
+  const colNum = parseInt(document.getElementById('cible-domaine')?.value);
+  if (colNum) updateResultatsSelect(colNum);
 }
 
 function renderResultatsTags() {
@@ -1022,25 +1033,35 @@ function renderResultatsTags() {
     document.getElementById('resultats-tags') ||
     document.getElementById('resultatsTags') ||
     document.getElementById('cible-resultats-tags') ||
-    document.getElementById('modal-resultats-tags');
+    document.getElementById('modal-resultats-tags') ||
+    document.getElementById('resultats-attendus-list');
 
   if (!container) {
     console.warn("Zone des résultats attendus introuvable dans app.html. renderResultatsTags ignoré.");
     return;
   }
 
-  container.innerHTML = '';
+  const resultats = state.tempResultats || [];
 
-  if (!window.resultatsAttendus || window.resultatsAttendus.length === 0) {
-    container.innerHTML = '<p class="empty-text">Aucun résultat attendu paramétré.</p>';
+  if (resultats.length === 0) {
+    container.innerHTML = '<p class="empty-text">Aucun résultat attendu sélectionné.</p>';
     return;
   }
 
-  container.innerHTML = window.resultatsAttendus.map(resultat => `
+  container.innerHTML = resultats.map((libelle, index) => `
     <span class="tag-resultat">
-      ${resultat.libelle || resultat.nom || resultat.titre || 'Résultat'}
+      <span>${escapeHTML(libelle)}</span>
+      <button type="button" class="tag-resultat-remove" data-resultat-index="${index}" title="Retirer">×</button>
     </span>
   `).join('');
+
+  container.querySelectorAll('.tag-resultat-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const index = parseInt(btn.dataset.resultatIndex);
+      const libelle = state.tempResultats[index];
+      if (libelle) removeResultatTag(libelle);
+    });
+  });
 }
 
 document.addEventListener('change', e => {
@@ -1354,6 +1375,39 @@ async function deleteObjectifEvt() {
 // ============================================================
 // CHECKLISTS
 // ============================================================
+function getChecklistSourceId(sourceId) {
+  const srcId = parseInt(sourceId);
+  if (!srcId) return null;
+
+  const source = state.sources.find(s => s.id === srcId);
+  if (!source) return null;
+
+  // Priorité 1 : checklist directement rattachée à la source sélectionnée
+  const hasOwnChecklist = state.checklist.some(item => item.source_id === source.id);
+  if (hasOwnChecklist) return source.id;
+
+  // Priorité 2 : checklist du parent, utile pour LinkedIn / salons / sources enfants
+  if (source.parent_id) {
+    const hasParentChecklist = state.checklist.some(item => item.source_id === source.parent_id);
+    if (hasParentChecklist) return source.parent_id;
+  }
+
+  return null;
+}
+
+function hasChecklistForSource(sourceId) {
+  return getChecklistSourceId(sourceId) !== null;
+}
+
+function openChecklistForSource(sourceId) {
+  const checklistSourceId = getChecklistSourceId(sourceId);
+  if (!checklistSourceId) {
+    showToast('Aucune checklist renseignée pour cette source.', 'info');
+    return;
+  }
+  openChecklistModal(checklistSourceId);
+}
+
 function openChecklistModal(sourceId) {
   state.currentChecklistSourceId = sourceId;
   const src = state.sources.find(s => s.id === sourceId);
@@ -1587,16 +1641,73 @@ function renderParametres() {
     }
   }
   // Tableau des utilisateurs
+  const tableU = document.querySelector('#param-users-table');
   const tbodyU = document.querySelector('#param-users-table tbody');
-  if (tbodyU) {
+  if (tableU && tbodyU) {
+    const headRow = tableU.querySelector('thead tr');
+    if (headRow) {
+      headRow.innerHTML = '<th>Prénom</th><th>Nom</th><th>Email</th><th>Statut</th><th>Action</th>';
+    }
+
+    const users = state.utilisateursAll || state.utilisateurs || [];
     tbodyU.innerHTML = '';
-    if (state.utilisateurs.length === 0) tbodyU.innerHTML = '<tr><td colspan="3" class="empty">Aucun utilisateur.</td></tr>';
-    else state.utilisateurs.forEach(u => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${u.prenom || '—'}</td><td>${u.nom || '—'}</td><td>${u.email || '—'}</td>`;
-      tbodyU.appendChild(tr);
-    });
+
+    if (users.length === 0) {
+      tbodyU.innerHTML = '<tr><td colspan="5" class="empty">Aucun utilisateur.</td></tr>';
+    } else {
+      users.forEach(u => {
+        const isActive = u.actif !== false;
+        const tr = document.createElement('tr');
+        if (!isActive) tr.className = 'row-muted';
+        tr.innerHTML = `
+          <td>${u.prenom || '—'}</td>
+          <td>${u.nom || '—'}</td>
+          <td>${u.email || '—'}</td>
+          <td><span class="badge ${isActive ? 'badge-success' : 'badge-secondary'}">${isActive ? 'Actif' : 'Désactivé'}</span></td>
+          <td>
+            <button type="button" class="${isActive ? 'btn-danger' : 'btn-primary'} btn-sm" data-toggle-user-active="${u.id}" data-next-active="${isActive ? 'false' : 'true'}">
+              ${isActive ? 'Désactiver' : 'Réactiver'}
+            </button>
+          </td>`;
+        tbodyU.appendChild(tr);
+      });
+
+      tbodyU.querySelectorAll('[data-toggle-user-active]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const userId = parseInt(btn.dataset.toggleUserActive);
+          const nextActive = btn.dataset.nextActive === 'true';
+          await toggleUtilisateurActif(userId, nextActive);
+        });
+      });
+    }
   }
+}
+
+async function toggleUtilisateurActif(userId, actif) {
+  const user = (state.utilisateursAll || []).find(u => u.id === userId);
+  if (!user) return;
+
+  if (!actif && user.id === state.user?.id) {
+    showToast('Impossible de désactiver le compte actuellement connecté.', 'error');
+    return;
+  }
+
+  const nom = `${user.prenom || ''} ${user.nom || ''}`.trim() || user.email || 'cet utilisateur';
+  const message = actif
+    ? `Réactiver ${nom} ?`
+    : `Désactiver ${nom} ? Son historique sera conservé, mais il disparaîtra des listes actives.`;
+
+  if (!confirm(message)) return;
+
+  const { error } = await sb.from('utilisateurs').update({ actif }).eq('id', userId);
+  if (error) {
+    showToast('Erreur utilisateur : ' + error.message, 'error');
+    return;
+  }
+
+  showToast(actif ? 'Utilisateur réactivé' : 'Utilisateur désactivé', 'success');
+  await loadData();
+  renderAll();
 }
 // ============================================================
 // RENDUS
@@ -1714,7 +1825,7 @@ function renderKanban() {
 }
 
 function renderKanbanCard(c, col, body) {
-  const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
+  const resp = getUtilisateurById(c.responsable_id);
   const src = state.sources.find(s => s.id === c.source_id);
   const card = document.createElement('div');
   card.className = 'kanban-card';
@@ -2052,7 +2163,7 @@ function renderDashboard() {
   const retards = cibles.filter(c => isTacheEnRetard(c));
   if (retards.length === 0) tbodyR.innerHTML = '<tr><td colspan="5" class="empty">Aucune tâche en retard 🎉</td></tr>';
   else retards.forEach(c => {
-    const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
+    const resp = getUtilisateurById(c.responsable_id);
     const col = COLONNES_V8.find(co => co.numero === getColonneCible(c));
     const jours = Math.floor((new Date() - new Date(c.date_echeance)) / 86400000);
     const tr = document.createElement('tr');
@@ -2283,7 +2394,7 @@ function renderTicketsFiltres(filtre) {
   }
   filtered.sort((a, b) => (a.date_echeance || '9999') < (b.date_echeance || '9999') ? -1 : 1);
   filtered.forEach(c => {
-    const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
+    const resp = getUtilisateurById(c.responsable_id);
     const col = COLONNES_V8.find(co => co.numero === getColonneCible(c));
     const retard = isTacheEnRetard(c);
     const tr = document.createElement('tr');
@@ -2321,7 +2432,7 @@ function renderTachesT0T1() {
     return;
   }
   taches.forEach(c => {
-    const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
+    const resp = getUtilisateurById(c.responsable_id);
     const col = COLONNES_V8.find(co => co.numero === getColonneCible(c));
     let statut, cls;
     if (c.est_terminee) { statut = '✅ Fermée'; cls = 'badge-success'; }
@@ -2399,8 +2510,8 @@ function renderCalendar() {
     row.className = 'cal-row';
     let labelClass = 'cal-source-label';
     let labelContent;
-    const hasChecklist = SOURCES_AVEC_CHECKLIST.includes(src.nom);
-    const checklistIcon = hasChecklist 
+    const checklistSourceId = getChecklistSourceId(src.id);
+    const checklistIcon = checklistSourceId
       ? `<span class="cal-source-checklist" data-checklist-source="${src.id}" title="Voir la checklist de préparatifs">📋</span>`
       : '';
     const editIcon = `<span class="cal-source-edit" data-source-edit="${src.id}" title="Modifier cette source">✏️</span>`;
@@ -2429,7 +2540,7 @@ function renderCalendar() {
     el.addEventListener('click', e => { e.stopPropagation(); toggleParent(parseInt(el.dataset.parentToggle)); });
   });
   container.querySelectorAll('[data-checklist-source]').forEach(el => {
-    el.addEventListener('click', e => { e.stopPropagation(); openChecklistModal(parseInt(el.dataset.checklistSource)); });
+    el.addEventListener('click', e => { e.stopPropagation(); openChecklistForSource(parseInt(el.dataset.checklistSource)); });
   });
   container.querySelectorAll('[data-source-edit]').forEach(el => {
     el.addEventListener('click', e => {
@@ -2631,7 +2742,7 @@ function renderEventsTable() {
   if (state.evenements.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Aucun événement.</td></tr>'; return; }
   state.evenements.forEach(ev => {
     const src = state.sources.find(s => s.id === ev.source_id);
-    const resp = state.utilisateurs.find(u => u.id === ev.responsable_id);
+    const resp = getUtilisateurById(ev.responsable_id);
     const objs = state.evtObjectifs.filter(o => o.evenement_id === ev.id);
     let statut = 'À venir', cls = 'badge-info';
     if (objs.length > 0) {
@@ -3322,7 +3433,7 @@ function exportToExcel() {
   // Onglet 1 : TÂCHES (toutes colonnes)
   // =============================================
   const tachesData = state.cibles.map(c => {
-    const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
+    const resp = getUtilisateurById(c.responsable_id);
     const src = state.sources.find(s => s.id === c.source_id);
     const col = COLONNES_V8.find(co => co.numero === getColonneCible(c));
     const resultats = state.cibleResultats.filter(r => r.cible_id === c.id).map(r => r.resultat_libelle).join(' ; ');
@@ -3360,7 +3471,7 @@ function exportToExcel() {
   // Onglet 2 : PIPELINE COMMERCIAL (col 5 uniquement)
   // =============================================
   const pipelineData = state.cibles.filter(c => getColonneCible(c) === 5).map(c => {
-    const resp = state.utilisateurs.find(u => u.id === c.responsable_id);
+    const resp = getUtilisateurById(c.responsable_id);
     const src = state.sources.find(s => s.id === c.source_id);
     return {
       'Description': c.description_action || c.intitule || '',
@@ -3382,7 +3493,7 @@ function exportToExcel() {
   // Onglet 3 : SUIVI HEBDO
   // =============================================
   const hebdoData = state.suivi.sort((a,b) => (a.annee - b.annee) || (a.semaine - b.semaine)).map(s => {
-    const u = state.utilisateurs.find(x => x.id === s.utilisateur_id);
+    const u = getUtilisateurById(s.utilisateur_id);
     return {
       'Année': s.annee, 'Semaine': `S${s.semaine}`,
       'Commercial': u ? `${u.prenom||''} ${u.nom||''}`.trim() : '',
@@ -3398,7 +3509,7 @@ function exportToExcel() {
   // =============================================
   const eventsData = state.evenements.sort((a,b) => (a.date_evenement||'').localeCompare(b.date_evenement||'')).map(ev => {
     const src = state.sources.find(s => s.id === ev.source_id);
-    const resp = state.utilisateurs.find(u => u.id === ev.responsable_id);
+    const resp = getUtilisateurById(ev.responsable_id);
     return {
       'Date début': ev.date_evenement, 'Date fin': ev.date_fin || '',
       'Type': ev.type_evenement || 'Extérieur',
@@ -3508,7 +3619,7 @@ function exportToExcel() {
   // =============================================
   const projetsData = (state.projetsMsi || []).map(p => {
     const cible = state.cibles.find(c => c.id === p.cible_id);
-    const resp = cible ? state.utilisateurs.find(u => u.id === cible.responsable_id) : null;
+    const resp = cible ? getUtilisateurById(cible.responsable_id) : null;
     return {
       'Contrat (tâche)': cible?.description_action || cible?.intitule || '',
       'Statut contrat': cible?.statut_avancement || '',

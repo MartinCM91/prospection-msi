@@ -682,6 +682,35 @@ function openModalCible(prefill = {}) {
     updateResultatsSelect(col);
   };
 
+  // Responsable : afficher les commerciaux actifs + conserver l'ancien responsable archivé si on modifie une tâche existante
+  const respSel = document.getElementById('cible-responsable');
+  if (respSel) {
+    respSel.innerHTML = '<option value="">—</option>';
+    getUtilisateursPourSelect(prefill.responsable_id || (!prefill.id ? state.user.id : null)).forEach(u => {
+      const o = document.createElement('option');
+      o.value = u.id;
+      o.textContent = getNomUtilisateurAvecStatut(u.id);
+      if (prefill.responsable_id === u.id || (!prefill.id && u.id === state.user.id)) o.selected = true;
+      respSel.appendChild(o);
+    });
+  }
+
+  // Source : remplir la liste des sources disponibles pour les tickets/tâches
+  const srcSel = document.getElementById('cible-source');
+  if (srcSel) {
+    srcSel.innerHTML = '<option value="">—</option>';
+    (state.sources || [])
+      .filter(s => s.groupe !== 'OUTIL')
+      .sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || '')))
+      .forEach(s => {
+        const o = document.createElement('option');
+        o.value = s.id;
+        o.textContent = (s.parent_id ? '  └ ' : '') + (s.nom || 'Source');
+        if (prefill.source_id === s.id) o.selected = true;
+        srcSel.appendChild(o);
+      });
+  }
+
   // Résultats attendus
   state.tempResultats = [];
   if (prefill.id) {
